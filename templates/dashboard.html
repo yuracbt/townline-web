@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}News — TownLine{% endblock %}
+{% block content %}
+<div class="dashhead">
+  <div>
+    <h1>{{ settings.get('town_name') or 'Your town' }}</h1>
+    <p class="muted">
+      {% if unread and settings.get('notify_enabled') %}
+        <strong>{{ unread }} new {{ 'story' if unread == 1 else 'stories' }}</strong>
+        — <a href="{{ url_for('mark_all_read') }}">mark all read</a>
+      {% elif unread %}
+        {{ unread }} unread
+      {% else %}
+        All caught up
+      {% endif %}
+    </p>
+  </div>
+  <a class="btn ghost" href="{{ url_for('rethink') }}" title="Re-apply the categorization rules to every stored story">↻ Rethink categories</a>
+</div>
+
+<div class="chips">
+  <a class="chip{% if not active_cat %} on{% endif %}" href="{{ url_for('dashboard') }}">All</a>
+  <a class="chip{% if active_cat == 'Saved' %} on{% endif %}" href="{{ url_for('dashboard', category='Saved') }}">★ Saved</a>
+  {% for c in cats if c != 'Saved' %}
+  <a class="chip{% if active_cat == c %} on{% endif %}" href="{{ url_for('dashboard', category=c) }}">{{ c }}</a>
+  {% endfor %}
+</div>
+
+{% if not stories %}
+<p class="muted empty">No stories here yet. Add feeds on the <a href="{{ url_for('feeds_page') }}">Feeds</a> page, or wait for the next scan.</p>
+{% endif %}
+
+<ul class="stories">
+{% for s in stories %}
+  <li class="story{% if s['is_read'] %} read{% endif %}">
+    <div class="srow">
+      <a class="stitle" href="{{ s['url'] }}" target="_blank" rel="noopener">{{ s['title'] }}</a>
+      <span class="cat">{{ s['category'] }}</span>
+    </div>
+    <div class="smeta">
+      <span>{{ s['feed_name'] or 'Feed' }}</span> ·
+      <span>{{ rel_time(s['published']) }}</span>
+      <span class="actions">
+        <a href="{{ url_for('toggle_save', sid=s['id']) }}" title="Save / unsave">{{ '★' if s['is_saved'] else '☆' }}</a>
+        {% if not s['is_read'] %}<a href="{{ url_for('mark_read', sid=s['id']) }}" title="Mark read">✓</a>{% endif %}
+      </span>
+    </div>
+  </li>
+{% endfor %}
+</ul>
+{% endblock %}

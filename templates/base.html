@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}TownLine{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="{{ url_for('dashboard') }}">TownLine</a>
+  {% if user %}
+  <nav>
+    <a href="{{ url_for('dashboard') }}">News</a>
+    <a href="{{ url_for('feeds_page') }}">Feeds</a>
+    <a href="{{ url_for('settings_page') }}">Settings</a>
+    <a href="{{ url_for('logout') }}">Logout ({{ user['username'] }})</a>
+  </nav>
+  {% endif %}
+</header>
+<main class="wrap">
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Feeds — TownLine{% endblock %}
+{% block content %}
+<h1>Feeds</h1>
+
+<form class="inline-form" method="post" action="{{ url_for('scan_now') }}">
+  <button type="submit">Scan now</button>
+</form>
+
+<ul class="feedlist">
+{% for f in feeds %}
+  <li class="feed">
+    <div>
+      <strong>{{ f['name'] }}</strong>
+      <div class="muted small">{{ f['url'] }}</div>
+      <div class="muted small">
+        {{ f['last_count'] }} stories · {{ f['sync_info'] }} · {{ f['thinking'] }}
+        {% if f['last_error'] %}<span class="error">· Error: {{ f['last_error'] }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="feedactions">
+      <form method="post" action="{{ url_for('feed_toggle', fid=f['id']) }}">
+        <button type="submit" class="btn small">{{ 'Disable' if f['enabled'] else 'Enable' }}</button>
+      </form>
+      <form method="post" action="{{ url_for('feed_delete', fid=f['id']) }}"
+            onsubmit="return confirm('Remove this feed?')">
+        <button type="submit" class="btn small danger">Remove</button>
+      </form>
+    </div>
+  </li>
+{% else %}
+  <li class="muted">No feeds yet.</li>
+{% endfor %}
+</ul>
+
+<h2>Add a feed</h2>
+<div class="card">
+  <form method="post" action="{{ url_for('feed_add') }}">
+    <label>Name <input name="name" placeholder="e.g. Airdrie Library"></label>
+    <label>Feed URL <input name="url" type="url" placeholder="https://…/feed" required></label>
+    <button type="submit">Add feed</button>
+  </form>
+</div>
+
+{% if suggested %}
+<h2>Suggested for {{ settings.get('town_name') or 'your town' }}</h2>
+<ul class="feedlist">
+{% for f in suggested %}
+  <li class="feed">
+    <div><strong>{{ f['name'] }}</strong><div class="muted small">{{ f['url'] }}</div></div>
+    <form method="post" action="{{ url_for('feed_add') }}">
+      <input type="hidden" name="name" value="{{ f['name'] }}">
+      <input type="hidden" name="url" value="{{ f['url'] }}">
+      <button type="submit" class="btn small">Add</button>
+    </form>
+  </li>
+{% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,662 @@
+"""TownLine Web — a multi-user local-news hub portal.
+
+Run:  pip install -r requirements.txt && python app.py
+Then open http://localhost:5000
+
+Each user gets fully separate feeds, stories, read/saved state and settings.
+A background daemon thread scans every user's enabled feeds on their own
+chosen interval (minimum 5 minutes).
+"""
+
+import json
+import os
+import sqlite3
+import threading
+import time
+import urllib.parse
+from datetime import datetime, timezone
+
+import feedparser
+import requests
+from flask import (Flask, g, jsonify, redirect, render_template, request,
+                   session, url_for)
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from categorizer import categorize, think_source
+
+# ---------------------------------------------------------------- config
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "townline.db")
+DIRECTORY_PATH = os.path.join(BASE_DIR, "feeds_directory.json")
+
+app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "dev-key-change-me")
+
+UA = "TownLineWeb/1.0"
+FEED_TIMEOUT = 10  # seconds; be polite to other people's servers
+
+INTERVALS = [
+    (5, "Every 5 minutes"),
+    (15, "Every 15 minutes"),
+    (30, "Every 30 minutes"),
+    (60, "Every hour"),
+    (120, "Every 2 hours"),
+    (240, "Every 4 hours"),
+    (480, "Every 8 hours"),
+    (720, "Every 12 hours"),
+    (1440, "Every day"),
+]
+
+
+def load_directory():
+    try:
+        with open(DIRECTORY_PATH, encoding="utf-8") as f:
+            return json.load(f).get("feeds", [])
+    except Exception:
+        return []
+
+
+FEED_DIRECTORY = load_directory()
+
+# ---------------------------------------------------------------- db
+
+
+def get_db():
+    if "db" not in g:
+        g.db = sqlite3.connect(DB_PATH)
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
+
+@app.teardown_appcontext
+def close_db(exc=None):
+    db = g.pop("db", None)
+    if db is not None:
+        db.close()
+
+
+def init_db():
+    db = sqlite3.connect(DB_PATH)
+    db.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            pw_hash TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS settings (
+            user_id INTEGER PRIMARY KEY,
+            town_name TEXT DEFAULT '',
+            lat REAL,
+            lon REAL,
+            scan_interval_min INTEGER DEFAULT 240,
+            notify_enabled INTEGER DEFAULT 1,
+            last_scan INTEGER DEFAULT 0,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS feeds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL,
+            enabled INTEGER DEFAULT 1,
+            last_sync INTEGER DEFAULT 0,
+            last_count INTEGER DEFAULT 0,
+            last_error TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS stories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            feed_id INTEGER,
+            title TEXT NOT NULL,
+            url TEXT NOT NULL,
+            published INTEGER DEFAULT 0,
+            summary TEXT DEFAULT '',
+            category TEXT DEFAULT 'News',
+            is_read INTEGER DEFAULT 0,
+            is_saved INTEGER DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            UNIQUE(user_id, url),
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_stories_user ON stories(user_id, published DESC);
+        """
+    )
+    db.commit()
+    db.close()
+
+
+# ---------------------------------------------------------------- helpers
+
+def current_user():
+    uid = session.get("user_id")
+    if not uid:
+        return None
+    db = get_db()
+    return db.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+
+
+def login_required(view):
+    from functools import wraps
+
+    @wraps(view)
+    def wrapper(*a, **kw):
+        if not current_user():
+            return redirect(url_for("login"))
+        return view(*a, **kw)
+
+    return wrapper
+
+
+def get_settings(user_id):
+    db = get_db()
+    row = db.execute("SELECT * FROM settings WHERE user_id = ?",
+                     (user_id,)).fetchone()
+    return dict(row) if row else {}
+
+
+def rel_time(ts):
+    """'2h ago' style age, like the Android app."""
+    if not ts:
+        return "never"
+    delta = int(time.time()) - int(ts)
+    if delta < 60:
+        return "just now"
+    if delta < 3600:
+        return f"{delta // 60}m ago"
+    if delta < 86400:
+        return f"{delta // 3600}h ago"
+    return f"{delta // 86400}d ago"
+
+
+def suggested_for_town(town_name, state="", country_code=""):
+    """Directory feeds whose match keys fit the town.
+    Keys are town substrings, '*alberta', or '*canada' (Android semantics)."""
+    t = (town_name or "").lower()
+    out = []
+    for f in FEED_DIRECTORY:
+        for key in f.get("match", []):
+            if key == "*canada" and country_code.lower() == "ca":
+                hit = True
+            elif key == "*alberta" and state.lower() in ("alberta",):
+                hit = True
+            elif not key.startswith("*") and key in t:
+                hit = True
+            else:
+                hit = False
+            if hit:
+                out.append(f)
+                break
+    return out
+
+
+def seed_default_feeds(user_id, town_name, state="", country_code=""):
+    """Seed sensible starting feeds for a town: curated directory matches,
+    plus a Google News search for the town name as a generic fallback."""
+    db = get_db()
+    have = {r["url"] for r in
+            db.execute("SELECT url FROM feeds WHERE user_id = ?",
+                       (user_id,)).fetchall()}
+    added = 0
+    for f in suggested_for_town(town_name, state, country_code):
+        if f["url"] not in have:
+            db.execute(
+                "INSERT INTO feeds (user_id, name, url, enabled) VALUES (?,?,?,1)",
+                (user_id, f["name"], f["url"]),
+            )
+            have.add(f["url"])
+            added += 1
+    if added == 0 and town_name:
+        cc = (country_code or "ca").upper()
+        gnews = ("https://news.google.com/rss/search?q="
+                 + urllib.parse.quote(town_name)
+                 + f"&hl=en&gl={cc}&ceid={cc}:en")
+        if gnews not in have:
+            db.execute(
+                "INSERT INTO feeds (user_id, name, url, enabled) VALUES (?,?,?,1)",
+                (user_id, f"Google News — {town_name}", gnews),
+            )
+            added += 1
+    db.commit()
+    return added
+
+
+# ---------------------------------------------------------------- scanner
+
+def fetch_feed(url):
+    r = requests.get(url, headers={"User-Agent": UA}, timeout=FEED_TIMEOUT)
+    r.raise_for_status()
+    return feedparser.parse(r.content)
+
+
+def scan_feed(db, user_id, feed):
+    """Scan one feed; returns number of new stories. Never raises."""
+    try:
+        parsed = fetch_feed(feed["url"])
+    except Exception as e:
+        db.execute("UPDATE feeds SET last_error = ? WHERE id = ?",
+                   (str(e)[:300], feed["id"]))
+        db.commit()
+        return 0
+    if getattr(parsed, "bozo", False) and not parsed.entries:
+        db.execute("UPDATE feeds SET last_error = ? WHERE id = ?",
+                   ("could not parse feed", feed["id"]))
+        db.commit()
+        return 0
+    new = 0
+    now = int(time.time())
+    for e in parsed.entries:
+        link = (e.get("link") or "").strip()
+        if not link:
+            continue
+        title = (e.get("title") or "Untitled").strip()
+        summary = (e.get("summary") or e.get("description") or "").strip()[:2000]
+        pp = e.get("published_parsed") or e.get("updated_parsed")
+        published = int(time.mktime(pp)) if pp else now
+        cat = categorize(feed["name"], feed["url"], title, summary)
+        cur = db.execute(
+            """INSERT OR IGNORE INTO stories
+               (user_id, feed_id, title, url, published, summary, category,
+                created_at)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (user_id, feed["id"], title, link, published, summary, cat, now),
+        )
+        if cur.rowcount:
+            new += 1
+    db.execute(
+        "UPDATE feeds SET last_sync = ?, last_count = ?, last_error = NULL "
+        "WHERE id = ?",
+        (now, new, feed["id"]),
+    )
+    db.commit()
+    return new
+
+
+def scan_user(user_id):
+    db = sqlite3.connect(DB_PATH)
+    db.row_factory = sqlite3.Row
+    try:
+        feeds = db.execute(
+            "SELECT * FROM feeds WHERE user_id = ? AND enabled = 1",
+            (user_id,)).fetchall()
+        for feed in feeds:  # one at a time; a bad feed must not kill the loop
+            try:
+                scan_feed(db, user_id, dict(feed))
+            except Exception as e:
+                try:
+                    db.execute("UPDATE feeds SET last_error = ? WHERE id = ?",
+                               (str(e)[:300], feed["id"]))
+                    db.commit()
+                except Exception:
+                    pass
+        db.execute("UPDATE settings SET last_scan = ? WHERE user_id = ?",
+                   (int(time.time()), user_id))
+        db.commit()
+    finally:
+        db.close()
+
+
+def scanner_loop():
+    """Daemon: every minute, scan each user whose interval has elapsed."""
+    while True:
+        try:
+            db = sqlite3.connect(DB_PATH)
+            db.row_factory = sqlite3.Row
+            users = db.execute("SELECT id FROM users").fetchall()
+            now = int(time.time())
+            for u in users:
+                s = db.execute(
+                    "SELECT scan_interval_min, last_scan FROM settings "
+                    "WHERE user_id = ?", (u["id"],)).fetchone()
+                if not s:
+                    continue
+                interval = max(5, s["scan_interval_min"] or 240) * 60
+                if now - (s["last_scan"] or 0) >= interval:
+                    db.close()  # scan_user opens its own connection
+                    scan_user(u["id"])
+                    db = sqlite3.connect(DB_PATH)
+                    db.row_factory = sqlite3.Row
+            db.close()
+        except Exception as e:
+            print("scanner error:", e)
+        time.sleep(60)
+
+
+# ---------------------------------------------------------------- auth
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if current_user():
+        return redirect(url_for("dashboard"))
+    error = None
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        db = get_db()
+        if not username or not password:
+            error = "Username and password are required."
+        elif db.execute("SELECT id FROM users WHERE username = ?",
+                        (username,)).fetchone():
+            error = "That username is taken."
+        else:
+            pw_hash = generate_password_hash(password, method="pbkdf2:sha256")
+            cur = db.execute(
+                "INSERT INTO users (username, pw_hash, created_at) VALUES (?,?,?)",
+                (username, pw_hash, int(time.time())),
+            )
+            uid = cur.lastrowid
+            db.execute("INSERT INTO settings (user_id) VALUES (?)", (uid,))
+            db.commit()
+            # Blank slate: no town, no feeds. The user picks their location
+            # in Settings, which seeds matching feeds for that town.
+            session["user_id"] = uid
+            return redirect(url_for("settings_page"))
+    return render_template("register.html", error=error)
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if current_user():
+        return redirect(url_for("dashboard"))
+    error = None
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        db = get_db()
+        user = db.execute("SELECT * FROM users WHERE username = ?",
+                          (username,)).fetchone()
+        if user and check_password_hash(user["pw_hash"], password):
+            session["user_id"] = user["id"]
+            return redirect(url_for("dashboard"))
+        error = "Wrong username or password."
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout")
+def logout():
+    session.pop("user_id", None)
+    return redirect(url_for("login"))
+
+
+# ---------------------------------------------------------------- dashboard
+
+@app.route("/")
+@login_required
+def dashboard():
+    user = current_user()
+    db = get_db()
+    settings = get_settings(user["id"])
+    active_cat = request.args.get("category", "")
+
+    cats = [r["category"] for r in db.execute(
+        "SELECT DISTINCT category FROM stories WHERE user_id = ? "
+        "ORDER BY category", (user["id"],)).fetchall()]
+    # "News" (the catch-all) sorts last, like a general shelf.
+    cats = sorted(cats, key=lambda c: (c == "News", c))
+
+    unread = db.execute(
+        "SELECT COUNT(*) c FROM stories WHERE user_id = ? AND is_read = 0",
+        (user["id"],)).fetchone()["c"]
+
+    q = ("SELECT s.*, f.name AS feed_name FROM stories s "
+         "LEFT JOIN feeds f ON f.id = s.feed_id "
+         "WHERE s.user_id = ?")
+    params = [user["id"]]
+    if active_cat:
+        q += " AND s.category = ?"
+        params.append(active_cat)
+    q += " ORDER BY s.published DESC LIMIT 200"
+    stories = db.execute(q, params).fetchall()
+
+    return render_template(
+        "dashboard.html", user=user, settings=settings, cats=cats,
+        active_cat=active_cat, unread=unread, stories=stories,
+        rel_time=rel_time,
+    )
+
+
+@app.route("/story/<int:sid>/read")
+@login_required
+def mark_read(sid):
+    db = get_db()
+    db.execute("UPDATE stories SET is_read = 1 WHERE id = ? AND user_id = ?",
+               (sid, session["user_id"]))
+    db.commit()
+    return redirect(request.referrer or url_for("dashboard"))
+
+
+@app.route("/stories/read_all")
+@login_required
+def mark_all_read():
+    db = get_db()
+    db.execute("UPDATE stories SET is_read = 1 WHERE user_id = ?",
+               (session["user_id"],))
+    db.commit()
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/story/<int:sid>/save")
+@login_required
+def toggle_save(sid):
+    db = get_db()
+    db.execute(
+        "UPDATE stories SET is_saved = 1 - is_saved WHERE id = ? AND user_id = ?",
+        (sid, session["user_id"]),
+    )
+    db.commit()
+    return redirect(request.referrer or url_for("dashboard"))
+
+
+@app.route("/rethink")
+@login_required
+def rethink():
+    """Re-apply the current categorization rules to all stored stories."""
+    user = current_user()
+    db = get_db()
+    rows = db.execute(
+        "SELECT s.id, f.name, f.url, s.title, s.summary, s.category "
+        "FROM stories s LEFT JOIN feeds f ON f.id = s.feed_id "
+        "WHERE s.user_id = ?", (user["id"],)).fetchall()
+    n = 0
+    for r in rows:
+        if r["category"] == "Saved":
+            continue  # user-saved links keep their shelf
+        db.execute("UPDATE stories SET category = ? WHERE id = ?",
+                   (categorize(r["name"], r["url"], r["title"],
+                               r["summary"]), r["id"]))
+        n += 1
+    db.commit()
+    return redirect(url_for("dashboard"))
+
+
+# ---------------------------------------------------------------- feeds
+
+@app.route("/feeds")
+@login_required
+def feeds_page():
+    user = current_user()
+    db = get_db()
+    settings = get_settings(user["id"])
+    feeds = db.execute(
+        "SELECT * FROM feeds WHERE user_id = ? ORDER BY name",
+        (user["id"],)).fetchall()
+    feed_rows = []
+    for f in feeds:
+        d = dict(f)
+        d["thinking"] = think_source(f["name"], f["url"])
+        d["sync_info"] = (rel_time(f["last_sync"]) if f["last_sync"]
+                          else "not scanned yet")
+        feed_rows.append(d)
+    have_urls = {f["url"] for f in feeds}
+    suggested = [f for f in suggested_for_town(settings.get("town_name", ""))
+                 if f["url"] not in have_urls]
+    return render_template("feeds.html", user=user, settings=settings,
+                           feeds=feed_rows, suggested=suggested,
+                           rel_time=rel_time)
+
+
+@app.route("/feeds/add", methods=["POST"])
+@login_required
+def feed_add():
+    name = request.form.get("name", "").strip()
+    url = request.form.get("url", "").strip()
+    if url:
+        if not name:
+            name = url
+        db = get_db()
+        try:
+            db.execute(
+                "INSERT INTO feeds (user_id, name, url, enabled) "
+                "VALUES (?,?,?,1)",
+                (session["user_id"], name, url),
+            )
+            db.commit()
+        except sqlite3.IntegrityError:
+            pass
+        threading.Thread(target=scan_user, args=(session["user_id"],),
+                         daemon=True).start()
+    return redirect(url_for("feeds_page"))
+
+
+@app.route("/feeds/<int:fid>/toggle", methods=["POST"])
+@login_required
+def feed_toggle(fid):
+    db = get_db()
+    db.execute(
+        "UPDATE feeds SET enabled = 1 - enabled "
+        "WHERE id = ? AND user_id = ?", (fid, session["user_id"]))
+    db.commit()
+    return redirect(url_for("feeds_page"))
+
+
+@app.route("/feeds/<int:fid>/delete", methods=["POST"])
+@login_required
+def feed_delete(fid):
+    db = get_db()
+    db.execute("DELETE FROM feeds WHERE id = ? AND user_id = ?",
+               (fid, session["user_id"]))
+    db.commit()
+    return redirect(url_for("feeds_page"))
+
+
+@app.route("/feeds/scan_now", methods=["POST"])
+@login_required
+def scan_now():
+    threading.Thread(target=scan_user, args=(session["user_id"],),
+                     daemon=True).start()
+    return redirect(url_for("feeds_page"))
+
+
+# ---------------------------------------------------------------- settings
+
+@app.route("/settings", methods=["GET", "POST"])
+@login_required
+def settings_page():
+    user = current_user()
+    db = get_db()
+    if request.method == "POST":
+        interval = int(request.form.get("scan_interval_min", 240))
+        notify = 1 if request.form.get("notify_enabled") else 0
+        db.execute(
+            "UPDATE settings SET scan_interval_min = ?, notify_enabled = ? "
+            "WHERE user_id = ?",
+            (interval, notify, user["id"]),
+        )
+        db.commit()
+        return redirect(url_for("settings_page"))
+    settings = get_settings(user["id"])
+    return render_template("settings.html", user=user, settings=settings,
+                           intervals=INTERVALS)
+
+
+@app.route("/api/geocode")
+@login_required
+def api_geocode():
+    """Location search via OpenStreetMap Nominatim (free, no key).
+    Accepts place names, postal codes, ZIPs — whatever Nominatim returns."""
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify([])
+    try:
+        r = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": q, "format": "json", "limit": 5,
+                    "addressdetails": 1},
+            headers={"User-Agent": UA},
+            timeout=10,
+        )
+        r.raise_for_status()
+        out = []
+        for item in r.json():
+            addr = item.get("address", {})
+            city = (addr.get("city") or addr.get("town")
+                    or addr.get("village") or addr.get("hamlet")
+                    or addr.get("municipality") or "")
+            out.append({
+                "display_name": item.get("display_name", ""),
+                "lat": item.get("lat"),
+                "lon": item.get("lon"),
+                "city": city,
+                "state": addr.get("state", ""),
+                "country_code": addr.get("country_code", ""),
+            })
+        return jsonify(out)
+    except Exception as e:
+        return jsonify({"error": str(e)[:200]}), 502
+
+
+@app.route("/settings/location", methods=["POST"])
+@login_required
+def set_location():
+    """Save the picked Nominatim result as the user's town and seed feeds."""
+    user = current_user()
+    name = request.form.get("display_name", "").strip()
+    city = request.form.get("city", "").strip()
+    lat = request.form.get("lat", "").strip()
+    lon = request.form.get("lon", "").strip()
+    state = request.form.get("state", "")
+    country_code = request.form.get("country_code", "")
+    if name:
+        db = get_db()
+        # Prefer the real place name ("Los Angeles") over a bare postal
+        # code ("90210, Los Angeles, …" → first part would be the ZIP).
+        town = city or name.split(",")[0].strip()
+        db.execute(
+            "UPDATE settings SET town_name = ?, lat = ?, lon = ? "
+            "WHERE user_id = ?",
+            (town, float(lat or 0) or None, float(lon or 0) or None,
+             user["id"]),
+        )
+        db.commit()
+        seed_default_feeds(user["id"], town, state=state,
+                           country_code=country_code)
+        threading.Thread(target=scan_user, args=(user["id"],),
+                         daemon=True).start()
+    return redirect(url_for("settings_page"))
+
+
+# ---------------------------------------------------------------- main
+
+@app.context_processor
+def inject_helpers():
+    return {"rel_time": rel_time}
+
+
+def start_background():
+    """DB + scanner thread. Runs at import so it also works under gunicorn
+    (use a single worker: gunicorn --workers 1)."""
+    init_db()
+    t = threading.Thread(target=scanner_loop, daemon=True)
+    t.start()
+
+
+start_background()
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    print(f"TownLine Web on http://localhost:{port}")
+    app.run(host="0.0.0.0", port=port, debug=False)

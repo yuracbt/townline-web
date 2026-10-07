@@ -158,6 +158,28 @@ Always Free tier gives you a real virtual machine, forever free. As of 2026 the
 ARM allowance is **2 OCPUs / 12 GB RAM** (halved from the old 4/24 — still far
 more than this app needs), plus 200 GB storage and 10 TB/month bandwidth.
 
+### Staying on Always Free — the checklist
+
+1. **Never upgrade to Pay-As-You-Go.** A new account is locked to the Free
+   Tier: Oracle physically blocks you from creating anything beyond the free
+   limits until you manually upgrade. This one rule is 95% of the safety.
+2. **Stay inside the Always Free caps** (current as of mid-2026):
+   - Ampere A1 (`VM.Standard.A1.Flex`): **2 OCPU + 12 GB RAM total**
+     (one 2/12 VM, or two 1/6 VMs)
+   - AMD E2 micro: 2 instances (tiny — not needed for this app)
+   - Block storage: **200 GB total** including the boot volume (default 47 GB
+     is fine — don't enlarge it past what you need)
+   - Outbound bandwidth: 10 TB/month (this app uses a trickle)
+   - When creating anything, the console labels it **"Always Free eligible"**
+     — only ever pick those.
+3. **Watch the three dashboards** (all under ☰ → Billing & Cost Management):
+   - **Cost Analysis** — actual spend; should sit at $0.
+   - **Budgets** — the $0 budget alert from the guide above.
+   - **Limits, Quotas and Usage** (under Governance & Administration) —
+     shows consumption vs. quota per resource.
+4. **Don't create what you don't need.** No load balancers, no extra block
+   volumes, no databases — this app needs exactly one VM and its boot volume.
+
 - Needs a credit card **for identity verification only** (a small temporary
   hold, released; not charged). Stay on the Always Free tier — don't upgrade to
   pay-as-you-go.

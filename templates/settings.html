@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Settings — TownLine{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+
+<div class="card">
+  <h2>Your town</h2>
+  <p>Currently: <strong>{{ settings.get('town_name') or 'not set' }}</strong></p>
+  <label>Search by place name, postal code or ZIP
+    <input id="locq" placeholder="e.g. Airdrie, T4B 0B5, 90210" autocomplete="off">
+  </label>
+  <ul id="locresults" class="locresults"></ul>
+  <p class="muted small">Results come from OpenStreetMap Nominatim.</p>
+</div>
+
+<div class="card">
+  <h2>Scanning</h2>
+  <form method="post">
+    <label>Scan interval
+      <select name="scan_interval_min">
+        {% for val, label in intervals %}
+        <option value="{{ val }}"{% if settings.get('scan_interval_min') == val %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="check">
+      <input type="checkbox" name="notify_enabled" value="1"{% if settings.get('notify_enabled') %} checked{% endif %}>
+      Show the unread-stories count in the header
+    </label>
+    <button type="submit">Save settings</button>
+  </form>
+</div>
+
+<script>
+const q = document.getElementById('locq');
+const box = document.getElementById('locresults');
+let timer = null;
+q.addEventListener('input', () => {
+  clearTimeout(timer);
+  timer = setTimeout(async () => {
+    const v = q.value.trim();
+    if (v.length < 2) { box.innerHTML = ''; return; }
+    const r = await fetch('/api/geocode?q=' + encodeURIComponent(v));
+    const items = await r.json();
+    box.innerHTML = '';
+    if (!Array.isArray(items)) return;
+    for (const it of items) {
+      const li = document.createElement('li');
+      const form = document.createElement('form');
+      form.method = 'post';
+      form.action = '/settings/location';
+      const fields = {
+        display_name: it.display_name, city: it.city || '',
+        lat: it.lat, lon: it.lon,
+        state: it.state || '', country_code: it.country_code || ''
+      };
+      for (const [k, val] of Object.entries(fields)) {
+        const h = document.createElement('input');
+        h.type = 'hidden'; h.name = k; h.value = val;
+        form.appendChild(h);
+      }
+      const b = document.createElement('button');
+      b.type = 'submit'; b.className = 'linklike';
+      b.textContent = it.display_name;
+      form.appendChild(b);
+      li.appendChild(form);
+      box.appendChild(li);
+    }
+  }, 350);
+});
+</script>
+{% endblock %}

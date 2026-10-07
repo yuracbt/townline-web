@@ -196,6 +196,48 @@ more than this app needs), plus 200 GB storage and 10 TB/month bandwidth.
   your domain's A record at the VM and open the ingress ports 80/443 in the
   VCN security list.
 
+### Phase 2 — Create the VM (after signup)
+
+1. Sign in at [cloud.oracle.com](https://cloud.oracle.com). Set the $0 budget
+   alert first (steps in the previous reply) — 2 minutes, then it's guarding
+   you from here on.
+2. ☰ → **Compute** → **Instances** → **Create instance**.
+3. Configure:
+   - **Name:** `townline-web`
+   - **Compartment:** your root compartment
+   - **Image:** Canonical Ubuntu **24.04** (aarch64 — pick the ARM build)
+   - **Shape:** click **Change shape** → **Ampere** → `VM.Standard.A1.Flex` →
+     **2 OCPU, 12 GB RAM** (the Always Free maximum)
+   - **Networking:** create a new VCN (defaults are fine) or use the existing
+     one; **assign a public IPv4 address** (required)
+   - **SSH keys:** paste your public key (`~/.ssh/id_ed25519.pub`), or let
+     Oracle generate a pair and download the private key — keep it safe
+   - **Boot volume:** leave the default size (don't enlarge it)
+4. **Create.** If you get **"Out of host capacity"**, it's normal on the free
+   shape — wait and retry, or try off-peak hours.
+5. When the instance is **Running**, note its **public IP**.
+6. Open the firewall — **two layers**, both must allow traffic:
+   - **Cloud side:** the instance page → **Attached VNIC** → **Subnet** →
+     **Default Security List** → **Add Ingress Rules**: TCP **22**, **80**,
+     **443** from `0.0.0.0/0`.
+   - **VM side:** handled automatically by `deploy/oracle-setup.sh`.
+7. SSH in and run the deploy script:
+   ```bash
+   ssh ubuntu@<public-ip>
+   curl -sSL https://raw.githubusercontent.com/yuracbt/townline-web/main/deploy/oracle-setup.sh \
+     -o oracle-setup.sh && chmod +x oracle-setup.sh
+   ./oracle-setup.sh your-domain.com
+   ```
+8. Point `your-domain.com`'s DNS **A record** at the public IP. Caddy fetches
+   the HTTPS certificate automatically on first visit.
+9. Open `https://your-domain.com`, register, set your town — you're live.
+
+No domain? You can test with `http://<public-ip>:5000`... no — the service
+listens on 127.0.0.1 behind Caddy. For a quick no-domain test, temporarily run
+`./.venv/bin/python app.py` on the VM (it binds 0.0.0.0:5000) and open
+`http://<public-ip>:5000`. A free domain (or a cheap one, ~$15/year) is worth it
+for real testing — HTTPS matters for logins.
+
 ---
 
 ## Why not the other free hosts?

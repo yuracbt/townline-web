@@ -154,14 +154,25 @@ feeds. If the page takes ~60s to load, it's just waking up — refresh once.
 ## Option C — Oracle Cloud Always Free (always-on, most setup)
 
 If you outgrow both options and want a server that never sleeps: Oracle Cloud's
-Always Free tier includes 2 small virtual machines, forever. Full control, the
-database persists, the scanner runs 24/7.
+Always Free tier gives you a real virtual machine, forever free. As of 2026 the
+ARM allowance is **2 OCPUs / 12 GB RAM** (halved from the old 4/24 — still far
+more than this app needs), plus 200 GB storage and 10 TB/month bandwidth.
 
-- Needs a credit card **for identity verification only** (not charged).
-- Real Linux admin work: create the VM, open ports 80/443, install Python,
-  clone the repo, run with gunicorn behind Caddy or nginx, point a domain at
-  it (or use the VM's public IP).
-- Worth it only if TownLine Web graduates from "testing" to "real service".
+- Needs a credit card **for identity verification only** (a small temporary
+  hold, released; not charged). Stay on the Always Free tier — don't upgrade to
+  pay-as-you-go.
+- **Pick your home region carefully** (Canada Southeast / Toronto is closest to
+  Airdrie) — it can never be changed.
+- Set a **$0 billing budget alert** (Billing → Budgets) so you'd hear about it
+  if anything ever stopped being free.
+- "Out of host capacity" errors are common on the free ARM shape — just retry,
+  or try again in a few hours.
+- Once the VM exists, one script does the rest: it installs Python, Caddy
+  (automatic HTTPS), and TownLine Web as a service. See
+  [`deploy/oracle-setup.sh`](deploy/oracle-setup.sh):
+  `./oracle-setup.sh your-domain.com` on a fresh Ubuntu 24.04 VM, then point
+  your domain's A record at the VM and open the ingress ports 80/443 in the
+  VCN security list.
 
 ---
 

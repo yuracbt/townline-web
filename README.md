@@ -4,20 +4,28 @@ A multi-user news-hub web portal — the web sibling of the TownLine Android app
 Each user gets their own local-news line: own feeds, own stories, own read/saved
 state, own town and scan settings.
 
-## Run it
+## Run it locally
+
+You need **Python 3.10+** ([python.org/downloads](https://www.python.org/downloads/)).
 
 ```bash
-cd ~/workspace/townline-web
-python3 -m venv .venv          # once (a .venv already exists here)
-.venv/bin/pip install -r requirements.txt
-.venv/bin/python app.py
+git clone https://github.com/yuracbt/townline-web.git
+cd townline-web
+./run.sh            # macOS / Linux — first run installs everything itself
 ```
 
-Open http://localhost:5000 — register an account and you're in. Registration
-starts blank: set your town in Settings (by name, postal code, or ZIP) and
-matching feeds are seeded. Your first scan starts immediately; the background
-scanner then re-scans on your chosen interval
+On Windows, double-click `run.bat` (or run it from a terminal). No git?
+Download the ZIP from the repo's green **Code** button and unzip it instead.
+
+Then open **http://localhost:5000** — register an account and you're in.
+Registration starts blank: set your town in Settings (by name, postal code, or
+ZIP) and matching local + regional feeds are seeded. Your first scan starts
+immediately; the background scanner then re-scans on your chosen interval
 (5/15/30 min, 1/2/4/8/12/24 h).
+
+- Stop the server with Ctrl+C in the terminal.
+- Your data lives in `townline.db` next to `app.py` — delete that file to
+  start completely fresh.
 
 ## Hosting it for free
 

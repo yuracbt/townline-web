@@ -49,12 +49,14 @@ async function loadSuggestions() {
         const fd = new FormData();
         fd.append('name', f.name);
         fd.append('url', f.url);
-        await fetch('{{ url_for("feed_add") }}', {
+        const resp = await fetch('{{ url_for("feed_add") }}', {
           method: 'POST',
           body: fd,
           headers: { 'X-Requested-With': 'fetch' }
         });
-        btn.textContent = '✓ Added — scanning now';
+        let dup = false;
+        try { dup = (await resp.json()).duplicate === true; } catch (e) {}
+        btn.textContent = dup ? '✓ Already in your feeds' : '✓ Added — scanning now';
       });
       li.appendChild(info);
       li.appendChild(btn);

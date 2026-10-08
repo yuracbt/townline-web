@@ -27,6 +27,29 @@ immediately; the background scanner then re-scans on your chosen interval
 - Your data lives in `townline.db` next to `app.py` — delete that file to
   start completely fresh.
 
+## Mac workflow: test → update → deploy
+
+`tl.sh` wraps the whole cycle (macOS / Linux):
+
+```bash
+./tl.sh run      # run locally at http://localhost:5000
+./tl.sh update   # pull the newest version from GitHub
+./tl.sh deploy   # deploy GitHub's version to the Oracle VM, restart the app
+./tl.sh ssh      # open a shell on the VM
+./tl.sh logs     # show the app's recent log on the VM
+```
+
+One-time setup for `deploy`/`ssh`/`logs`: the VM's SSH private key has to live
+at `~/.ssh/townline-web-2.key`. Get it from Oracle Console → Cloud Shell:
+
+```bash
+cat ~/.ssh/ampere-watch
+```
+
+Save that output to `~/.ssh/townline-web-2.key` on your Mac, then
+`chmod 600 ~/.ssh/townline-web-2.key`. Note the VM deploys from GitHub, so
+`git push` any code changes before `./tl.sh deploy`.
+
 ## Hosting it for free
 
 See **[HOSTING.md](HOSTING.md)** — detailed guide: Cloudflare Quick Tunnel

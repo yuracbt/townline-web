@@ -10,12 +10,14 @@ chosen interval (minimum 5 minutes).
 
 import json
 import os
+import re
 import sqlite3
 import threading
 import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 
 import feedparser
 import requests
@@ -226,6 +228,199 @@ def is_working_feed(url):
         except Exception:
             pass
     return False
+
+
+# ---------------------------------------------------------------- web feed discovery
+# "Scan the internet" for feeds covering a town:
+#   1. Google News search for the town -> publisher domains behind the stories
+#   2. per domain: <link rel=alternate> autodiscovery + feed-ish hrefs in the
+#      HTML + conventional feed paths (/feed, /rss, /rss.xml, ...)
+#   3. every candidate is verified with is_working_feed before suggesting
+# Candidates are cached per town for 24h (discovery changes rarely);
+# verification still happens live on every suggestions load.
+
+DISCOVERY_TTL = 24 * 3600
+_discovery_cache = {}  # town_lower -> (timestamp, [{"name","url"}, ...])
+
+CONVENTIONAL_FEED_PATHS = ("/feed", "/rss", "/rss.xml", "/feed.xml",
+                           "/atom.xml", "/feeds", "/news/feed", "/rss/news")
+
+
+class _FeedLinkParser(HTMLParser):
+    """Collects <link rel=alternate type=rss|atom> hrefs from a page."""
+
+    def __init__(self):
+        super().__init__()
+        self.feeds = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() != "link":
+            return
+        d = dict(attrs)
+        if (d.get("rel", "").lower() == "alternate"
+                and d.get("type", "").lower()
+                in ("application/rss+xml", "application/atom+xml")
+                and d.get("href")):
+            self.feeds.append({"title": d.get("title", ""),
+                               "href": d.get("href")})
+
+
+def _looks_like_feed_url(url):
+    """True if the URL's path looks like a feed (segment/extension match —
+    not a bare substring, so 'rogerssportsandmedia' doesn't match 'rss')."""
+    try:
+        path = urllib.parse.urlparse(url).path.lower()
+    except Exception:
+        return False
+    if path.startswith("/wiki/"):
+        return False
+    if path.endswith((".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg",
+                      ".ico", ".mp4", ".mp3", ".pdf")):
+        return False
+    segs = [s for s in path.split("/") if s]
+    if not segs:
+        return False
+    last = segs[-1]
+    if last in ("rss", "feed", "feeds", "atom"):
+        return True
+    if last.endswith((".rss", ".xml", ".atom")):
+        return True
+    return any(s in ("rss", "feed", "feeds", "atom") for s in segs)
+
+
+def _feed_hrefs_in_html(html, base_url):
+    """Feed-ish hrefs found anywhere in page HTML (e.g. a '/rss' index link)."""
+    out = []
+    for m in re.finditer(r'''(?:href|src)\s*=\s*["']([^"']+)["']''',
+                         html[:300000], re.IGNORECASE):
+        u = m.group(1).strip()
+        if not u or u.startswith(("#", "javascript:", "mailto:")):
+            continue
+        full = urllib.parse.urljoin(base_url, u)
+        if _looks_like_feed_url(full) and full not in out:
+            out.append(full)
+    return out[:12]
+
+
+def _candidate_feed_urls(domain):
+    """Feed URL candidates for a publisher domain (unverified).
+    Returns [{"title", "url"}]; title may be "" (derived later)."""
+    candidates = []
+
+    def add(url, title=""):
+        if url and all(c["url"] != url for c in candidates):
+            candidates.append({"title": title, "url": url})
+
+    for scheme in ("https", "http"):
+        try:
+            r = requests.get(f"{scheme}://{domain}",
+                             headers={"User-Agent": UA}, timeout=10)
+            if r.status_code != 200:
+                continue
+            ctype = r.headers.get("Content-Type", "")
+            if "html" not in ctype:
+                continue
+            html = r.text
+            parser = _FeedLinkParser()
+            try:
+                parser.feed(html[:300000])
+            except Exception:
+                pass
+            for f in parser.feeds:
+                add(urllib.parse.urljoin(r.url, f["href"]), f["title"])
+            # one level deeper: a feed index page (e.g. /rss) may list feeds
+            for href in _feed_hrefs_in_html(html, r.url):
+                add(href)
+                try:
+                    r2 = requests.get(href, headers={"User-Agent": UA},
+                                      timeout=10)
+                    if (r2.status_code == 200
+                            and "html" in r2.headers.get("Content-Type", "")):
+                        for href2 in _feed_hrefs_in_html(r2.text, r2.url):
+                            add(href2)
+                except Exception:
+                    pass
+            break  # https worked; no need to try http
+        except Exception:
+            continue
+    for path in CONVENTIONAL_FEED_PATHS:
+        add(f"https://{domain}{path}")
+    return candidates[:30]
+
+
+def _publisher_domains_for_town(town, max_domains=8):
+    """Publisher domains behind Google News stories about the town."""
+    url = ("https://news.google.com/rss/search?q="
+           + urllib.parse.quote(town) + "&hl=en&gl=CA&ceid=CA:en")
+    try:
+        parsed = fetch_feed(url)
+    except Exception:
+        return []
+    domains = []
+    for e in parsed.entries[:40]:
+        href = ""
+        src = e.get("source") or {}
+        if isinstance(src, dict):
+            href = src.get("href") or ""
+        if not href:
+            link = e.get("link") or ""
+            if "news.google.com" not in link:
+                href = link
+        host = urllib.parse.urlparse(href).netloc.lower()
+        if host.startswith("www."):
+            host = host[4:]
+        if host and "news.google.com" not in host and host not in domains:
+            domains.append(host)
+        if len(domains) >= max_domains:
+            break
+    return domains
+
+
+def _pretty_feed_name(title, url):
+    """Human name for a discovered feed: the site's own <link> title when
+    available, else 'host — Section' derived from the URL path."""
+    if title and len(title.strip()) < 80:
+        return title.strip()
+    host = urllib.parse.urlparse(url).netloc.lower()
+    host = host[4:] if host.startswith("www.") else host
+    seg = url.rstrip("/").rsplit("/", 1)[-1].lower()
+    label = seg.replace("-", " ").replace("_", " ").title()
+    if label and label.lower() not in ("feed", "rss", "rss.xml", "feed.xml",
+                                       "atom.xml", "atom", "feeds", "index"):
+        return f"{host} — {label}"
+    return host
+
+
+def discover_web_feeds(town):
+    """Feeds found on the open web for a town (cached 24h, unverified —
+    verification happens live in /api/suggestions). Max 6 per domain."""
+    key = (town or "").lower().strip()
+    if not key:
+        return []
+    now = time.time()
+    hit = _discovery_cache.get(key)
+    if hit and now - hit[0] < DISCOVERY_TTL:
+        return hit[1]
+    found, seen, per_domain = [], set(), {}
+    domains = _publisher_domains_for_town(key)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for candidates in pool.map(_candidate_feed_urls, domains):
+            for c in candidates:
+                url, domain = c["url"], urllib.parse.urlparse(
+                    c["url"]).netloc.lower()
+                norm = url.rstrip("/")
+                if norm in seen or per_domain.get(domain, 0) >= 6:
+                    continue
+                seen.add(norm)
+                per_domain[domain] = per_domain.get(domain, 0) + 1
+                found.append({"name": _pretty_feed_name(c["title"], url),
+                              "url": url, "origin": "web"})
+                if len(found) >= 30:
+                    break
+            if len(found) >= 30:
+                break
+    _discovery_cache[key] = (now, found)
+    return found
 
 
 def seed_default_feeds(user_id, town_name, state="", country_code=""):
@@ -534,27 +729,42 @@ def feeds_page():
 @login_required
 def api_suggestions():
     """Feeds suggested for the user's town, verified working right now —
-    like the Android app's Discover screen. Excludes already-added feeds."""
+    like the Android app's Discover screen, plus feeds discovered on the
+    open web for the town. Excludes already-added feeds."""
     user = current_user()
     db = get_db()
     settings = get_settings(user["id"])
+    town = settings.get("town_name", "")
     have = {r["url"] for r in
             db.execute("SELECT url FROM feeds WHERE user_id = ?",
                        (user["id"],)).fetchall()}
-    candidates = [
-        f for f in suggested_for_town(settings.get("town_name", ""),
-                                      settings.get("state", ""),
-                                      settings.get("country_code", ""))
-        if f["url"] not in have
-    ]
+
+    candidates = []
+    seen = set()
+
+    def add_candidate(name, url, origin):
+        norm = (url or "").strip().rstrip("/")
+        if not norm or norm in seen or norm in have:
+            return
+        seen.add(norm)
+        candidates.append({"name": name, "url": norm, "origin": origin})
+
+    for f in suggested_for_town(town, settings.get("state", ""),
+                                settings.get("country_code", "")):
+        add_candidate(f["name"], f["url"], "directory")
+    for f in discover_web_feeds(town):
+        add_candidate(f["name"], f["url"], "web")
+
     working = []
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        results = pool.map(is_working_feed, [f["url"] for f in candidates])
-    for f, ok in zip(candidates, results):
-        if ok:
-            working.append({"name": f["name"], "url": f["url"]})
+    seen_names = set()
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = pool.map(is_working_feed, [c["url"] for c in candidates])
+    for c, ok in zip(candidates, results):
+        if ok and c["name"] not in seen_names:
+            seen_names.add(c["name"])
+            working.append(c)
     return jsonify({
-        "town": settings.get("town_name", ""),
+        "town": town,
         "suggestions": working,
     })
 
@@ -703,7 +913,53 @@ def set_location():
                            country_code=country_code)
         threading.Thread(target=scan_user, args=(user["id"],),
                          daemon=True).start()
+        flash(f"Town set to {town} — here are feeds we found for it.")
     return redirect(url_for("settings_page"))
+
+
+@app.route("/settings/locate", methods=["POST"])
+@login_required
+def locate():
+    """'Scan near me': set the town from the browser's geolocation
+    (lat/lon) via Nominatim reverse-geocoding, then seed + scan like a
+    manual location pick."""
+    user = current_user()
+    data = request.get_json(force=True, silent=True) or {}
+    lat, lon = data.get("lat"), data.get("lon")
+    if lat is None or lon is None:
+        return jsonify({"ok": False})
+    try:
+        r = requests.get(
+            "https://nominatim.openstreetmap.org/reverse",
+            params={"lat": lat, "lon": lon, "format": "json",
+                    "addressdetails": 1},
+            headers={"User-Agent": UA},
+            timeout=10,
+        )
+        r.raise_for_status()
+        item = r.json()
+    except Exception:
+        return jsonify({"ok": False})
+    addr = item.get("address", {}) or {}
+    city = (addr.get("city") or addr.get("town") or addr.get("village")
+            or addr.get("hamlet") or addr.get("municipality") or "")
+    town = city or (item.get("display_name") or "").split(",")[0].strip()
+    if not town:
+        return jsonify({"ok": False})
+    state = addr.get("state", "")
+    country_code = addr.get("country_code", "")
+    db = get_db()
+    db.execute(
+        "UPDATE settings SET town_name = ?, lat = ?, lon = ?, state = ?, "
+        "country_code = ? WHERE user_id = ?",
+        (town, float(lat), float(lon), state, country_code, user["id"]),
+    )
+    db.commit()
+    seed_default_feeds(user["id"], town, state=state,
+                       country_code=country_code)
+    threading.Thread(target=scan_user, args=(user["id"],),
+                     daemon=True).start()
+    return jsonify({"ok": True, "town": town})
 
 
 # ---------------------------------------------------------------- main

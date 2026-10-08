@@ -25,7 +25,7 @@ ssh_vm() {
 }
 
 cmd_run() {
-  exec ./run.sh
+  exec bash ./run.sh
 }
 
 cmd_update() {

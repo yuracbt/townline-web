@@ -149,20 +149,15 @@ def init_db():
     for ddl in (
         "ALTER TABLE settings ADD COLUMN state TEXT DEFAULT ''",
         "ALTER TABLE settings ADD COLUMN country_code TEXT DEFAULT ''",
+        "ALTER TABLE settings ADD COLUMN story_limit INTEGER DEFAULT 200",
     ):
         try:
             db.execute(ddl)
         except sqlite3.OperationalError:
             pass  # column already there
-    # Drop exact-duplicate feeds/places that slipped in before dedup guards.
-    db.execute(
-        "DELETE FROM feeds WHERE id NOT IN (SELECT MIN(id) FROM feeds "
-        "GROUP BY user_id, lower(rtrim(trim(url), '/')))"
-    )
-    db.execute(
-        "DELETE FROM places WHERE id NOT IN (SELECT MIN(id) FROM places "
-        "GROUP BY user_id, lower(rtrim(trim(url), '/')))"
-    )
+    # Drop duplicate feeds/places that slipped in before the dedup guards.
+    _dedup_table(db, "feeds")
+    _dedup_table(db, "places")
     db.commit()
     db.close()
 
@@ -211,9 +206,46 @@ def rel_time(ts):
 
 
 def norm_url(u):
-    """Canonical form for duplicate comparison (Android semantics):
-    trimmed, lowercased, no trailing slash."""
-    return (u or "").strip().lower().rstrip("/")
+    """Canonical form for duplicate comparison (smart): lowercased,
+    scheme dropped, leading www. dropped, default ports dropped,
+    query/fragment ignored, no trailing slash.
+
+    So https://www.example.com/feed, http://example.com/feed/ and
+    HTTPS://EXAMPLE.COM/feed?utm=x all count as the same source.
+    Only used for comparison — the original URL is always stored."""
+    u = (u or "").strip()
+    if not u:
+        return ""
+    try:
+        p = urllib.parse.urlsplit(u.lower())
+        host = p.netloc
+        if host.startswith("www."):
+            host = host[4:]
+        if host.endswith(":80"):
+            host = host[:-3]
+        elif host.endswith(":443"):
+            host = host[:-4]
+        path = p.path.rstrip("/") or "/"
+        return host + path
+    except Exception:
+        return u.lower().rstrip("/")
+
+
+def _dedup_table(db, table):
+    """Delete duplicate rows (same user + same normalized URL), keep oldest."""
+    rows = db.execute(
+        f"SELECT id, user_id, url FROM {table}").fetchall()
+    seen, dup_ids = set(), []
+    for r in rows:
+        key = (r["user_id"], norm_url(r["url"]))
+        if key in seen:
+            dup_ids.append(r["id"])
+        else:
+            seen.add(key)
+    if dup_ids:
+        db.execute(
+            f"DELETE FROM {table} WHERE id IN "
+            f"({','.join('?' * len(dup_ids))})", dup_ids)
 
 
 def suggested_for_town(town_name, state="", country_code=""):
@@ -438,10 +470,12 @@ def discover_web_feeds(town):
     with ThreadPoolExecutor(max_workers=4) as pool:
         for candidates in pool.map(_candidate_feed_urls, domains):
             for c in candidates:
-                url, domain = c["url"], urllib.parse.urlparse(
-                    c["url"]).netloc.lower()
-                norm = url.rstrip("/")
-                if norm in seen or per_domain.get(domain, 0) >= 6:
+                url = c["url"]
+                domain = urllib.parse.urlparse(url).netloc.lower()
+                if domain.startswith("www."):
+                    domain = domain[4:]
+                norm = norm_url(url)
+                if not norm or norm in seen or per_domain.get(domain, 0) >= 6:
                     continue
                 seen.add(norm)
                 per_domain[domain] = per_domain.get(domain, 0) + 1
@@ -791,8 +825,9 @@ def dashboard():
     cats = [r["category"] for r in db.execute(
         "SELECT DISTINCT category FROM stories WHERE user_id = ? "
         "ORDER BY category", (user["id"],)).fetchall()]
-    # "News" (the catch-all) sorts last, like a general shelf.
-    cats = sorted(cats, key=lambda c: (c == "News", c))
+    # Priority: News first, then alphabetical, Sport and Business last.
+    cats = sorted(cats, key=lambda c: (0, "") if c == "News"
+                  else ((2, c) if c in ("Sport", "Business") else (1, c)))
 
     unread_counts = {r["category"]: r["c"] for r in db.execute(
         "SELECT category, COUNT(*) c FROM stories "
@@ -844,7 +879,13 @@ def dashboard():
         params.append(active_cat)
     if unread_only:
         q += " AND s.is_read = 0"
-    q += " ORDER BY s.published DESC LIMIT 200"
+    q += " ORDER BY s.published DESC"
+    limit = settings.get("story_limit")
+    if limit is None:
+        limit = 200
+    if limit > 0:
+        q += " LIMIT ?"
+        params.append(limit)
     stories = db.execute(q, params).fetchall()
 
     return render_template(
@@ -862,6 +903,22 @@ def mark_read(sid):
                (sid, session["user_id"]))
     db.commit()
     return redirect(request.referrer or url_for("dashboard"))
+
+
+@app.route("/story/<int:sid>/open")
+@login_required
+def open_story(sid):
+    """Open the article AND mark the story read in one click."""
+    db = get_db()
+    row = db.execute(
+        "SELECT url FROM stories WHERE id = ? AND user_id = ?",
+        (sid, session["user_id"])).fetchone()
+    if not row:
+        return redirect(url_for("dashboard"))
+    db.execute("UPDATE stories SET is_read = 1 WHERE id = ? AND user_id = ?",
+               (sid, session["user_id"]))
+    db.commit()
+    return redirect(row["url"])
 
 
 @app.route("/stories/read_all")
@@ -1139,10 +1196,18 @@ def settings_page():
     if request.method == "POST":
         interval = int(request.form.get("scan_interval_min", 240))
         notify = 1 if request.form.get("notify_enabled") else 0
+        raw_limit = (request.form.get("story_limit") or "200").strip()
+        if raw_limit.lower() in ("all", "", "0"):
+            story_limit = 0  # 0 = show all stories
+        else:
+            try:
+                story_limit = max(0, min(2000, int(raw_limit)))
+            except ValueError:
+                story_limit = 200
         db.execute(
-            "UPDATE settings SET scan_interval_min = ?, notify_enabled = ? "
-            "WHERE user_id = ?",
-            (interval, notify, user["id"]),
+            "UPDATE settings SET scan_interval_min = ?, notify_enabled = ?, "
+            "story_limit = ? WHERE user_id = ?",
+            (interval, notify, story_limit, user["id"]),
         )
         db.commit()
         return redirect(url_for("settings_page"))

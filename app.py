@@ -32,6 +32,7 @@ from categorizer import categorize, think_source
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "townline.db")
 DIRECTORY_PATH = os.path.join(BASE_DIR, "feeds_directory.json")
+PLACES_PATH = os.path.join(BASE_DIR, "places_directory.json")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-key-change-me")
@@ -60,7 +61,16 @@ def load_directory():
         return []
 
 
+def load_places_directory():
+    try:
+        with open(PLACES_PATH, encoding="utf-8") as f:
+            return json.load(f).get("places", [])
+    except Exception:
+        return []
+
+
 FEED_DIRECTORY = load_directory()
+PLACES_DIRECTORY = load_places_directory()
 
 # ---------------------------------------------------------------- db
 
@@ -126,6 +136,13 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         );
         CREATE INDEX IF NOT EXISTS idx_stories_user ON stories(user_id, published DESC);
+        CREATE TABLE IF NOT EXISTS places (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
         """
     )
     # Migrations for databases created before these columns existed.
@@ -137,6 +154,15 @@ def init_db():
             db.execute(ddl)
         except sqlite3.OperationalError:
             pass  # column already there
+    # Drop exact-duplicate feeds/places that slipped in before dedup guards.
+    db.execute(
+        "DELETE FROM feeds WHERE id NOT IN (SELECT MIN(id) FROM feeds "
+        "GROUP BY user_id, lower(rtrim(trim(url), '/')))"
+    )
+    db.execute(
+        "DELETE FROM places WHERE id NOT IN (SELECT MIN(id) FROM places "
+        "GROUP BY user_id, lower(rtrim(trim(url), '/')))"
+    )
     db.commit()
     db.close()
 
@@ -182,6 +208,12 @@ def rel_time(ts):
     if delta < 86400:
         return f"{delta // 3600}h ago"
     return f"{delta // 86400}d ago"
+
+
+def norm_url(u):
+    """Canonical form for duplicate comparison (Android semantics):
+    trimmed, lowercased, no trailing slash."""
+    return (u or "").strip().lower().rstrip("/")
 
 
 def suggested_for_town(town_name, state="", country_code=""):
@@ -423,28 +455,162 @@ def discover_web_feeds(town):
     return found
 
 
+def suggested_places_for_town(town_name):
+    """Curated places (event calendars, libraries, chambers) for the town."""
+    t = (town_name or "").lower()
+    out = []
+    for p in PLACES_DIRECTORY:
+        for key in p.get("match", []):
+            if not key.startswith("*") and key in t:
+                out.append({"name": p["name"], "url": p["url"],
+                            "origin": "directory"})
+                break
+    return out
+
+
+# ---------------------------------------------------------------- OSM place discovery
+# "Scan the internet" for real local places: theatres, galleries, museums,
+# libraries, universities, schools, community centres, city halls and shops
+# around the user's coordinates, via the OpenStreetMap Overpass API.
+
+OSM_TTL = 24 * 3600
+_osm_cache = {}  # town_lower -> (timestamp, [places])
+
+OSM_KIND_LABELS = {
+    "theatre": "Theatre", "library": "Library",
+    "arts_centre": "Arts centre", "gallery": "Gallery",
+    "museum": "Museum", "university": "University",
+    "college": "College", "school": "School",
+    "community_centre": "Community centre", "townhall": "City hall",
+    "attraction": "Attraction",
+}
+
+OVERPASS_URLS = (
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+)
+
+# Preferred display order for place kinds (variety first, not 60 libraries).
+OSM_KIND_RANK = {
+    "theatre": 0, "gallery": 1, "museum": 2, "arts_centre": 3,
+    "library": 4, "university": 5, "attraction": 6, "townhall": 7,
+    "college": 8, "community_centre": 9,
+}
+
+
+def _osm_kind(tags):
+    for key in ("amenity", "tourism", "shop"):
+        v = (tags.get(key) or "").lower()
+        if v:
+            return v
+    return ""
+
+
+def _osm_label(kind):
+    if kind in OSM_KIND_LABELS:
+        return OSM_KIND_LABELS[kind]
+    return kind.replace("_", " ").title() or "Place"
+
+
+def _osm_place_url(tags, name, town):
+    for key in ("website", "contact:website"):
+        site = (tags.get(key) or "").strip()
+        if site:
+            if not site.lower().startswith(("http://", "https://")):
+                site = "https://" + site
+            return site
+    q = urllib.parse.quote(f"{name}, {town}")
+    return f"https://www.google.com/maps/search/?api=1&query={q}"
+
+
+def _overpass(query):
+    """Run one Overpass query; [] on any failure."""
+    for base in OVERPASS_URLS:
+        try:
+            r = requests.post(base, data={"data": query},
+                              headers={"User-Agent": UA}, timeout=30)
+            if r.status_code == 200:
+                return r.json().get("elements", [])
+        except Exception:
+            continue
+    return []
+
+
+def discover_osm_places(lat, lon, town):
+    """Live places around (lat, lon) from OpenStreetMap. Cached 24h.
+
+    Two queries: cultural/civic places in 15 km, local shops in 8 km.
+    (Schools are deliberately excluded — hundreds of them in any city,
+    and they make the query time out without adding visit value.)
+    """
+    key = (town or "").lower().strip()
+    if not key or not lat or not lon:
+        return []
+    now = time.time()
+    hit = _osm_cache.get(key)
+    if hit and now - hit[0] < OSM_TTL:
+        return hit[1]
+
+    queries = [
+        ("[out:json][timeout:20];("
+         f"node(around:15000,{lat},{lon})"
+         "[amenity~\"^(theatre|library|arts_centre|university|college"
+         "|community_centre|townhall)$\"];"
+         f"node(around:15000,{lat},{lon})"
+         "[tourism~\"^(gallery|museum|attraction)$\"];"
+         ");out tags 60;"),
+        ("[out:json][timeout:20];("
+         f"node(around:8000,{lat},{lon})[shop~\"^(books|art|music|gift)$\"];"
+         ");out tags 30;"),
+    ]
+    elements = []
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        for els in pool.map(_overpass, queries):
+            elements.extend(els)
+
+    found, seen = [], set()
+    for el in elements:
+        tags = el.get("tags", {}) or {}
+        name = (tags.get("name") or "").strip()
+        if not name or len(name) > 80:
+            continue
+        kind = _osm_kind(tags)
+        norm = name.lower()
+        if norm in seen:
+            continue
+        seen.add(norm)
+        found.append({"name": name, "kind": _osm_label(kind),
+                      "url": _osm_place_url(tags, name, town),
+                      "origin": "nearby", "_rank": OSM_KIND_RANK.get(kind, 99)})
+    found.sort(key=lambda p: (p["_rank"], p["name"].lower()))
+    found = [{k: v for k, v in p.items() if k != "_rank"}
+             for p in found[:60]]
+    _osm_cache[key] = (now, found)
+    return found
+
+
 def seed_default_feeds(user_id, town_name, state="", country_code=""):
     """Seed sensible starting feeds for a town: curated directory matches,
     plus a Google News search for the town name as a generic fallback."""
     db = get_db()
-    have = {r["url"] for r in
+    have = {norm_url(r["url"]) for r in
             db.execute("SELECT url FROM feeds WHERE user_id = ?",
                        (user_id,)).fetchall()}
     added = 0
     for f in suggested_for_town(town_name, state, country_code):
-        if f["url"] not in have:
+        if norm_url(f["url"]) not in have:
             db.execute(
                 "INSERT INTO feeds (user_id, name, url, enabled) VALUES (?,?,?,1)",
                 (user_id, f["name"], f["url"]),
             )
-            have.add(f["url"])
+            have.add(norm_url(f["url"]))
             added += 1
     if added == 0 and town_name:
         cc = (country_code or "ca").upper()
         gnews = ("https://news.google.com/rss/search?q="
                  + urllib.parse.quote(town_name)
                  + f"&hl=en&gl={cc}&ceid={cc}:en")
-        if gnews not in have:
+        if norm_url(gnews) not in have:
             db.execute(
                 "INSERT INTO feeds (user_id, name, url, enabled) VALUES (?,?,?,1)",
                 (user_id, f"Google News — {town_name}", gnews),
@@ -775,7 +941,7 @@ def api_suggestions():
     db = get_db()
     settings = get_settings(user["id"])
     town = settings.get("town_name", "")
-    have = {r["url"] for r in
+    have = {norm_url(r["url"]) for r in
             db.execute("SELECT url FROM feeds WHERE user_id = ?",
                        (user["id"],)).fetchall()}
 
@@ -783,11 +949,11 @@ def api_suggestions():
     seen = set()
 
     def add_candidate(name, url, origin):
-        norm = (url or "").strip().rstrip("/")
+        norm = norm_url(url)
         if not norm or norm in seen or norm in have:
             return
         seen.add(norm)
-        candidates.append({"name": name, "url": norm, "origin": origin})
+        candidates.append({"name": name, "url": url.strip(), "origin": origin})
 
     for f in suggested_for_town(town, settings.get("state", ""),
                                 settings.get("country_code", "")):
@@ -815,11 +981,17 @@ def feed_add():
     name = request.form.get("name", "").strip()
     url = request.form.get("url", "").strip()
     added = False
+    duplicate = False
     if url:
         if not name:
             name = url
         db = get_db()
-        try:
+        have = {norm_url(r["url"]) for r in
+                db.execute("SELECT url FROM feeds WHERE user_id = ?",
+                           (session["user_id"],)).fetchall()}
+        if norm_url(url) in have:
+            duplicate = True
+        else:
             db.execute(
                 "INSERT INTO feeds (user_id, name, url, enabled) "
                 "VALUES (?,?,?,1)",
@@ -827,14 +999,15 @@ def feed_add():
             )
             db.commit()
             added = True
-        except sqlite3.IntegrityError:
-            pass
-        threading.Thread(target=scan_user, args=(session["user_id"],),
-                         daemon=True).start()
+            threading.Thread(target=scan_user, args=(session["user_id"],),
+                             daemon=True).start()
     wants_json = (request.headers.get("X-Requested-With") == "fetch"
                   or "application/json" in request.headers.get("Accept", ""))
     if wants_json:
-        return jsonify({"ok": added, "name": name, "url": url})
+        return jsonify({"ok": added, "duplicate": duplicate,
+                        "name": name, "url": url})
+    if duplicate:
+        flash("That feed is already in your list.")
     return redirect(url_for("feeds_page"))
 
 
@@ -866,6 +1039,94 @@ def scan_now():
                      daemon=True).start()
     flash("Scanning your feeds — new stories will appear in a moment.")
     return redirect(request.referrer or url_for("feeds_page"))
+
+
+# ---------------------------------------------------------------- places
+
+@app.route("/places")
+@login_required
+def places_page():
+    user = current_user()
+    db = get_db()
+    settings = get_settings(user["id"])
+    places = db.execute(
+        "SELECT * FROM places WHERE user_id = ? ORDER BY name",
+        (user["id"],)).fetchall()
+    return render_template("places.html", user=user, settings=settings,
+                           places=places)
+
+
+@app.route("/api/places/suggestions")
+@login_required
+def api_places_suggestions():
+    """Places for the user's town: curated directory + live OpenStreetMap
+    discovery around their coordinates. Excludes already-saved places."""
+    user = current_user()
+    db = get_db()
+    settings = get_settings(user["id"])
+    town = settings.get("town_name", "")
+    have = {norm_url(r["url"]) for r in
+            db.execute("SELECT url FROM places WHERE user_id = ?",
+                       (user["id"],)).fetchall()}
+    suggestions, seen = [], set()
+
+    def add(name, url, kind="", origin=""):
+        norm = norm_url(url)
+        if not norm or norm in seen or norm in have:
+            return
+        seen.add(norm)
+        suggestions.append({"name": name, "url": url.strip(),
+                            "kind": kind, "origin": origin})
+
+    for p in suggested_places_for_town(town):
+        add(p["name"], p["url"], origin="directory")
+    for p in discover_osm_places(settings.get("lat"), settings.get("lon"),
+                                 town):
+        add(p["name"], p["url"], kind=p["kind"], origin=p["origin"])
+    return jsonify({"town": town, "suggestions": suggestions})
+
+
+@app.route("/places/add", methods=["POST"])
+@login_required
+def place_add():
+    name = request.form.get("name", "").strip()
+    url = request.form.get("url", "").strip()
+    added = False
+    duplicate = False
+    if url:
+        if not name:
+            name = url
+        db = get_db()
+        have = {norm_url(r["url"]) for r in
+                db.execute("SELECT url FROM places WHERE user_id = ?",
+                           (session["user_id"],)).fetchall()}
+        if norm_url(url) in have:
+            duplicate = True
+        else:
+            db.execute(
+                "INSERT INTO places (user_id, name, url) VALUES (?,?,?)",
+                (session["user_id"], name, url),
+            )
+            db.commit()
+            added = True
+    wants_json = (request.headers.get("X-Requested-With") == "fetch"
+                  or "application/json" in request.headers.get("Accept", ""))
+    if wants_json:
+        return jsonify({"ok": added, "duplicate": duplicate,
+                        "name": name, "url": url})
+    if duplicate:
+        flash("That place is already in your list.")
+    return redirect(url_for("places_page"))
+
+
+@app.route("/places/<int:pid>/delete", methods=["POST"])
+@login_required
+def place_delete(pid):
+    db = get_db()
+    db.execute("DELETE FROM places WHERE id = ? AND user_id = ?",
+               (pid, session["user_id"]))
+    db.commit()
+    return redirect(url_for("places_page"))
 
 
 # ---------------------------------------------------------------- settings

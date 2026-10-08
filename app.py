@@ -91,6 +91,7 @@ def close_db(exc=None):
 
 def init_db():
     db = sqlite3.connect(DB_PATH)
+    db.row_factory = sqlite3.Row
     db.executescript(
         """
         CREATE TABLE IF NOT EXISTS users (

@@ -847,14 +847,20 @@ def dashboard():
             args["unread"] = 1
         return url_for("dashboard", **args)
 
+    def page_url(p):
+        args = {}
+        if active_cat:
+            args["category"] = active_cat
+        if unread_only:
+            args["unread"] = 1
+        if p > 1:
+            args["page"] = p
+        return url_for("dashboard", **args)
+
     chips = [
         {"label": "All", "url": chip_url(unread=unread_only),
          "count": unread_total,
          "active": not active_cat and not unread_only},
-        {"label": "Unread",
-         "url": chip_url(category=active_cat or None,
-                         unread=not unread_only),
-         "count": unread_total, "active": unread_only},
         {"label": "★ Saved",
          "url": chip_url(category="Saved", unread=unread_only),
          "count": unread_saved, "active": active_cat == "Saved"},
@@ -869,30 +875,46 @@ def dashboard():
             "active": active_cat == c,
         })
 
-    q = ("SELECT s.*, f.name AS feed_name FROM stories s "
-         "LEFT JOIN feeds f ON f.id = s.feed_id "
-         "WHERE s.user_id = ?")
+    where = "WHERE s.user_id = ?"
     params = [user["id"]]
     if active_cat == "Saved":
-        q += " AND s.is_saved = 1"
+        where += " AND s.is_saved = 1"
     elif active_cat:
-        q += " AND s.category = ?"
+        where += " AND s.category = ?"
         params.append(active_cat)
     if unread_only:
-        q += " AND s.is_read = 0"
-    q += " ORDER BY s.published DESC"
-    limit = settings.get("story_limit")
-    if limit is None:
-        limit = 200
-    if limit > 0:
-        q += " LIMIT ?"
-        params.append(limit)
-    stories = db.execute(q, params).fetchall()
+        where += " AND s.is_read = 0"
+    base = ("SELECT s.*, f.name AS feed_name FROM stories s "
+            "LEFT JOIN feeds f ON f.id = s.feed_id " + where)
+
+    # Stories per page (0 = All: everything on one page, no pagination).
+    page_size = settings.get("story_limit")
+    if page_size is None:
+        page_size = 200
+    page, total_pages = 1, 1
+    if page_size > 0:
+        total = db.execute(
+            "SELECT COUNT(*) c FROM stories s " + where, params).fetchone()["c"]
+        total_pages = max(1, (total + page_size - 1) // page_size)
+        try:
+            page = int(request.args.get("page", 1))
+        except (TypeError, ValueError):
+            page = 1
+        page = max(1, min(page, total_pages))
+        stories = db.execute(
+            base + " ORDER BY s.published DESC LIMIT ? OFFSET ?",
+            params + [page_size, (page - 1) * page_size]).fetchall()
+    else:
+        stories = db.execute(
+            base + " ORDER BY s.published DESC", params).fetchall()
 
     return render_template(
         "dashboard.html", user=user, settings=settings, chips=chips,
         active_cat=active_cat, unread=unread_total, unread_only=unread_only,
-        stories=stories, rel_time=rel_time,
+        stories=stories, rel_time=rel_time, page=page, total_pages=total_pages,
+        page_url=page_url,
+        unread_on_url=chip_url(category=active_cat or None, unread=True),
+        unread_off_url=chip_url(category=active_cat or None, unread=False),
     )
 
 
@@ -903,23 +925,9 @@ def mark_read(sid):
     db.execute("UPDATE stories SET is_read = 1 WHERE id = ? AND user_id = ?",
                (sid, session["user_id"]))
     db.commit()
+    if request.headers.get("X-Requested-With") == "fetch":
+        return ("", 204)  # instant-read AJAX call: no content needed
     return redirect(request.referrer or url_for("dashboard"))
-
-
-@app.route("/story/<int:sid>/open")
-@login_required
-def open_story(sid):
-    """Open the article AND mark the story read in one click."""
-    db = get_db()
-    row = db.execute(
-        "SELECT url FROM stories WHERE id = ? AND user_id = ?",
-        (sid, session["user_id"])).fetchone()
-    if not row:
-        return redirect(url_for("dashboard"))
-    db.execute("UPDATE stories SET is_read = 1 WHERE id = ? AND user_id = ?",
-               (sid, session["user_id"]))
-    db.commit()
-    return redirect(row["url"])
 
 
 @app.route("/stories/read_all")
@@ -1197,14 +1205,13 @@ def settings_page():
     if request.method == "POST":
         interval = int(request.form.get("scan_interval_min", 240))
         notify = 1 if request.form.get("notify_enabled") else 0
-        raw_limit = (request.form.get("story_limit") or "200").strip()
-        if raw_limit.lower() in ("all", "", "0"):
-            story_limit = 0  # 0 = show all stories
-        else:
-            try:
-                story_limit = max(0, min(2000, int(raw_limit)))
-            except ValueError:
-                story_limit = 200
+        raw_limit = request.form.get("story_limit", 200)
+        try:
+            story_limit = int(raw_limit)
+        except (TypeError, ValueError):
+            story_limit = 200
+        if story_limit not in (0, 25, 50, 100, 200):
+            story_limit = 200  # 0 = All: everything on one page
         db.execute(
             "UPDATE settings SET scan_interval_min = ?, notify_enabled = ?, "
             "story_limit = ? WHERE user_id = ?",

@@ -620,6 +620,7 @@ def dashboard():
     db = get_db()
     settings = get_settings(user["id"])
     active_cat = request.args.get("category", "")
+    unread_only = request.args.get("unread") == "1"
 
     cats = [r["category"] for r in db.execute(
         "SELECT DISTINCT category FROM stories WHERE user_id = ? "
@@ -627,24 +628,63 @@ def dashboard():
     # "News" (the catch-all) sorts last, like a general shelf.
     cats = sorted(cats, key=lambda c: (c == "News", c))
 
-    unread = db.execute(
-        "SELECT COUNT(*) c FROM stories WHERE user_id = ? AND is_read = 0",
-        (user["id"],)).fetchone()["c"]
+    unread_counts = {r["category"]: r["c"] for r in db.execute(
+        "SELECT category, COUNT(*) c FROM stories "
+        "WHERE user_id = ? AND is_read = 0 GROUP BY category",
+        (user["id"],)).fetchall()}
+    unread_total = sum(unread_counts.values())
+    unread_saved = db.execute(
+        "SELECT COUNT(*) c FROM stories WHERE user_id = ? AND is_read = 0 "
+        "AND is_saved = 1", (user["id"],)).fetchone()["c"]
+
+    def chip_url(category=None, unread=False):
+        args = {}
+        if category:
+            args["category"] = category
+        if unread:
+            args["unread"] = 1
+        return url_for("dashboard", **args)
+
+    chips = [
+        {"label": "All", "url": chip_url(unread=unread_only),
+         "count": unread_total,
+         "active": not active_cat and not unread_only},
+        {"label": "Unread",
+         "url": chip_url(category=active_cat or None,
+                         unread=not unread_only),
+         "count": unread_total, "active": unread_only},
+        {"label": "★ Saved",
+         "url": chip_url(category="Saved", unread=unread_only),
+         "count": unread_saved, "active": active_cat == "Saved"},
+    ]
+    for c in cats:
+        if c == "Saved":
+            continue
+        chips.append({
+            "label": c,
+            "url": chip_url(category=c, unread=unread_only),
+            "count": unread_counts.get(c, 0),
+            "active": active_cat == c,
+        })
 
     q = ("SELECT s.*, f.name AS feed_name FROM stories s "
          "LEFT JOIN feeds f ON f.id = s.feed_id "
          "WHERE s.user_id = ?")
     params = [user["id"]]
-    if active_cat:
+    if active_cat == "Saved":
+        q += " AND s.is_saved = 1"
+    elif active_cat:
         q += " AND s.category = ?"
         params.append(active_cat)
+    if unread_only:
+        q += " AND s.is_read = 0"
     q += " ORDER BY s.published DESC LIMIT 200"
     stories = db.execute(q, params).fetchall()
 
     return render_template(
-        "dashboard.html", user=user, settings=settings, cats=cats,
-        active_cat=active_cat, unread=unread, stories=stories,
-        rel_time=rel_time,
+        "dashboard.html", user=user, settings=settings, chips=chips,
+        active_cat=active_cat, unread=unread_total, unread_only=unread_only,
+        stories=stories, rel_time=rel_time,
     )
 
 

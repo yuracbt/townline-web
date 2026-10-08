@@ -12,6 +12,16 @@ if [ ! -d .venv ]; then
   python3 -m venv .venv
 fi
 .venv/bin/pip install -q -r requirements.txt
-echo "Starting TownLine Web on http://localhost:5000 ..."
+# macOS reserves port 5000 for AirPlay Receiver — use the first free port.
+if [ -z "${PORT:-}" ]; then
+  PORT=5000
+  if command -v lsof >/dev/null 2>&1; then
+    for p in 5000 5001 5002 5003 5004; do
+      if ! lsof -iTCP:$p -sTCP:LISTEN >/dev/null 2>&1; then PORT=$p; break; fi
+    done
+  fi
+fi
+export PORT
+echo "Starting TownLine Web on http://localhost:$PORT ..."
 echo "(Ctrl+C to stop)"
 .venv/bin/python app.py

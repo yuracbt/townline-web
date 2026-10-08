@@ -50,6 +50,9 @@ Save that output to `~/.ssh/townline-web-2.key` on your Mac, then
 `chmod 600 ~/.ssh/townline-web-2.key`. Note the VM deploys from GitHub, so
 `git push` any code changes before `./tl.sh deploy`.
 
+> Full command reference: [COMMANDS.md](COMMANDS.md) — getting updates,
+> pushing your changes, deploy, server details, troubleshooting.
+
 ## Hosting it for free
 
 See **[HOSTING.md](HOSTING.md)** — detailed guide: Cloudflare Quick Tunnel

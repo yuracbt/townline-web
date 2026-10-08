@@ -1210,7 +1210,7 @@ def settings_page():
             story_limit = int(raw_limit)
         except (TypeError, ValueError):
             story_limit = 200
-        if story_limit not in (0, 25, 50, 100, 200):
+        if story_limit not in (0, 5, 10, 15, 25, 50, 100, 200):
             story_limit = 200  # 0 = All: everything on one page
         db.execute(
             "UPDATE settings SET scan_interval_min = ?, notify_enabled = ?, "

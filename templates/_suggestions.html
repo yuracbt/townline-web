@@ -1,0 +1,68 @@
+<h2>Suggested for <span id="suggest-town">{{ settings.get('town_name') or 'your town' }}</span></h2>
+<p class="muted small" id="suggest-status">Checking which feeds work…</p>
+<ul class="feedlist" id="suggest-list"></ul>
+
+<script>
+async function loadSuggestions() {
+  const box = document.getElementById('suggest-list');
+  const status = document.getElementById('suggest-status');
+  box.innerHTML = '';
+  status.textContent = 'Checking which feeds work…';
+  try {
+    const r = await fetch('{{ url_for("api_suggestions") }}');
+    const data = await r.json();
+    const items = data.suggestions || [];
+    const townEl = document.getElementById('suggest-town');
+    if (townEl && data.town) townEl.textContent = data.town;
+    if (!items.length) {
+      status.textContent = data.town
+        ? 'No new feeds found for ' + data.town + ' — the directory grows with each release.'
+        : 'Set your town above to get feed suggestions.';
+      return;
+    }
+    status.textContent = items.length + ' suggestion(s) for ' + (data.town || 'your town') + ':';
+    for (const f of items) {
+      const li = document.createElement('li');
+      li.className = 'feed';
+      const info = document.createElement('div');
+      const strong = document.createElement('strong');
+      strong.textContent = f.name;
+      if (f.origin === 'web') {
+        const pill = document.createElement('span');
+        pill.className = 'pill';
+        pill.textContent = 'found on the web';
+        pill.title = 'Discovered by scanning the internet for this town';
+        strong.appendChild(document.createTextNode(' '));
+        strong.appendChild(pill);
+      }
+      const url = document.createElement('div');
+      url.className = 'muted small';
+      url.textContent = f.url;
+      info.appendChild(strong);
+      info.appendChild(url);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn small';
+      btn.textContent = 'Add';
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        const fd = new FormData();
+        fd.append('name', f.name);
+        fd.append('url', f.url);
+        await fetch('{{ url_for("feed_add") }}', {
+          method: 'POST',
+          body: fd,
+          headers: { 'X-Requested-With': 'fetch' }
+        });
+        btn.textContent = '✓ Added — scanning now';
+      });
+      li.appendChild(info);
+      li.appendChild(btn);
+      box.appendChild(li);
+    }
+  } catch (e) {
+    status.textContent = 'Could not check feeds right now — try again later.';
+  }
+}
+document.addEventListener('DOMContentLoaded', loadSuggestions);
+</script>

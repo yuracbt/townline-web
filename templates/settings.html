@@ -35,7 +35,7 @@
     </label>
     <label>Stories per page
       <select name="story_limit">
-        {% for v, label in [(0, 'All'), (25, '25'), (50, '50'), (100, '100'), (200, '200')] %}
+        {% for v, label in [(0, 'All'), (5, '5'), (10, '10'), (15, '15'), (25, '25'), (50, '50'), (100, '100'), (200, '200')] %}
         <option value="{{ v }}"{% if (settings.get('story_limit') if settings.get('story_limit') is not none else 200) == v %} selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>

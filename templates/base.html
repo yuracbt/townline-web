@@ -19,6 +19,13 @@
   {% endif %}
 </header>
 <main class="wrap">
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+<ul class="flashes">
+{% for m in messages %}<li>{{ m }}</li>{% endfor %}
+</ul>
+{% endif %}
+{% endwith %}
 {% block content %}{% endblock %}
 </main>
 </body>

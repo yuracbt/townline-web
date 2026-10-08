@@ -13,9 +13,17 @@
       {% else %}
         All caught up
       {% endif %}
+      {% if settings.get('last_scan') %}
+        · scanned {{ rel_time(settings.get('last_scan')) }}
+      {% endif %}
     </p>
   </div>
-  <a class="btn ghost" href="{{ url_for('rethink') }}" title="Re-apply the categorization rules to every stored story">↻ Rethink categories</a>
+  <div class="dashactions">
+    <form class="inline-form" method="post" action="{{ url_for('scan_now') }}">
+      <button type="submit" class="btn ghost" title="Scan all your feeds right now">↻ Scan now</button>
+    </form>
+    <a class="btn ghost" href="{{ url_for('rethink') }}" title="Re-apply the categorization rules to every stored story">↻ Rethink categories</a>
+  </div>
 </div>
 
 <div class="chips">

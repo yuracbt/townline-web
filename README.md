@@ -35,6 +35,7 @@ immediately; the background scanner then re-scans on your chosen interval
 ./tl.sh run      # run locally at http://localhost:5000
 ./tl.sh update   # pull the newest version from GitHub
 ./tl.sh deploy   # deploy GitHub's version to the Oracle VM, restart the app
+./tl.sh restart  # restart the app on the Oracle VM (no code changes)
 ./tl.sh ssh      # open a shell on the VM
 ./tl.sh logs     # show the app's recent log on the VM
 ```
@@ -52,6 +53,33 @@ Save that output to `~/.ssh/townline-web-2.key` on your Mac, then
 
 > Full command reference: [COMMANDS.md](COMMANDS.md) — getting updates,
 > pushing your changes, deploy, server details, troubleshooting.
+
+## Update, upload, restart
+
+**Update** — get the newest code from GitHub onto your computer:
+
+```bash
+cd ~/townline-web
+./tl.sh update
+```
+
+**Upload** — send your changes to GitHub, then to the Oracle cloud server:
+
+```bash
+cd ~/townline-web
+git add -A
+git commit -m "Describe what you changed"
+git push
+./tl.sh deploy
+```
+
+(The server pulls its code from GitHub, so `git push` first — `deploy` alone
+only sends what's already on GitHub.)
+
+**Restart the app:**
+
+- Locally: press **Ctrl+C** in the terminal where it runs, then `./tl.sh run` again.
+- On the Oracle cloud server: `./tl.sh restart`
 
 ## Hosting it for free
 

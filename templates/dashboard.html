@@ -6,10 +6,10 @@
     <h1>{{ settings.get('town_name') or 'Your town' }}</h1>
     <p class="muted">
       {% if unread and settings.get('notify_enabled') %}
-        <strong>{{ unread }} new {{ 'story' if unread == 1 else 'stories' }}</strong>
+        <strong><span data-unread-count>{{ unread }}</span> new {{ 'story' if unread == 1 else 'stories' }}</strong>
         — <a href="{{ url_for('mark_all_read') }}">mark all read</a>
       {% elif unread %}
-        {{ unread }} unread
+        <span data-unread-count>{{ unread }}</span> unread
       {% else %}
         All caught up
       {% endif %}
@@ -28,8 +28,16 @@
 
 <div class="chips">
   {% for chip in chips %}
-  <a class="chip{% if chip.active %} on{% endif %}" href="{{ chip.url }}">{{ chip.label }}{% if chip.count %} <span class="count">{{ chip.count }}</span>{% endif %}</a>
+  <a class="chip{% if chip.active %} on{% endif %}" href="{{ chip.url }}">{{ chip.label }}{% if chip.count %} <span class="count" data-unread-count>{{ chip.count }}</span>{% endif %}</a>
   {% endfor %}
+  <label class="switch-wrap" title="Show only unread stories">
+    <span class="switch">
+      <input type="checkbox" id="unreadSwitch"{% if unread_only %} checked{% endif %}
+             data-on="{{ unread_on_url }}" data-off="{{ unread_off_url }}">
+      <span class="slider"></span>
+    </span>
+    <span>Unread only</span>
+  </label>
 </div>
 
 {% if not stories %}
@@ -42,20 +50,82 @@
 
 <ul class="stories">
 {% for s in stories %}
-  <li class="story{% if s['is_read'] %} read{% endif %}">
+  <li class="story{% if s['is_read'] %} read{% endif %}" data-id="{{ s['id'] }}" data-url="{{ s['url'] }}">
     <div class="srow">
-      <a class="stitle" href="{{ url_for('open_story', sid=s['id']) }}" target="_blank" rel="noopener">{{ s['title'] }}</a>
+      <a class="stitle" href="{{ s['url'] }}" target="_blank" rel="noopener">{{ s['title'] }}</a>
       <span class="cat">{{ s['category'] }}</span>
     </div>
     <div class="smeta">
       <span>{{ s['feed_name'] or 'Feed' }}</span> ·
       <span>{{ rel_time(s['published']) }}</span>
       <span class="actions">
-        <a href="{{ url_for('toggle_save', sid=s['id']) }}" title="Save / unsave">{{ '★' if s['is_saved'] else '☆' }}</a>
-        {% if not s['is_read'] %}<a href="{{ url_for('mark_read', sid=s['id']) }}" title="Mark read">✓</a>{% endif %}
+        <a class="iconbtn" data-act="save" href="{{ url_for('toggle_save', sid=s['id']) }}" title="Save / unsave">{{ '★' if s['is_saved'] else '☆' }}</a>
+        {% if not s['is_read'] %}<a class="iconbtn" data-act="read" href="{{ url_for('mark_read', sid=s['id']) }}" title="Mark read">✓</a>{% endif %}
       </span>
     </div>
   </li>
 {% endfor %}
 </ul>
+
+{% if total_pages > 1 %}
+<nav class="pager">
+  {% if page > 1 %}
+  <a class="btn ghost" href="{{ page_url(page - 1) }}">← Newer</a>
+  {% endif %}
+  <span class="muted">Page {{ page }} of {{ total_pages }}</span>
+  {% if page < total_pages %}
+  <a class="btn ghost" href="{{ page_url(page + 1) }}">Older →</a>
+  {% endif %}
+</nav>
+{% endif %}
+
+<script>
+(function () {
+  // Clicking anywhere on a story line opens the article in a new tab
+  // and marks the story read instantly (no page reload).
+  function markRead(id) {
+    var row = document.querySelector('.story[data-id="' + id + '"]');
+    if (row && !row.classList.contains('read')) {
+      row.classList.add('read');
+      document.querySelectorAll('[data-unread-count]').forEach(function (el) {
+        var n = parseInt(el.textContent, 10);
+        if (n > 0) el.textContent = n - 1;
+      });
+      var sw = document.getElementById('unreadSwitch');
+      if (sw && sw.checked) {
+        row.style.transition = 'opacity .25s';
+        row.style.opacity = '0';
+        setTimeout(function () { row.remove(); }, 260);
+      }
+    }
+    fetch('/story/' + id + '/read', {headers: {'X-Requested-With': 'fetch'}});
+  }
+  var list = document.querySelector('.stories');
+  if (list) {
+    list.addEventListener('click', function (e) {
+      var row = e.target.closest('.story');
+      if (!row) return;
+      var btn = e.target.closest('.iconbtn');
+      if (btn) {
+        if (btn.dataset.act === 'read') {
+          e.preventDefault();
+          markRead(row.dataset.id);
+        }
+        return; // save button: normal navigation
+      }
+      markRead(row.dataset.id);
+      if (!e.target.closest('a.stitle')) {
+        window.open(row.dataset.url, '_blank', 'noopener');
+      }
+      // the title link itself already opens in a new tab via target=_blank
+    });
+  }
+  var sw = document.getElementById('unreadSwitch');
+  if (sw) {
+    sw.addEventListener('change', function () {
+      window.location.href = sw.checked ? sw.dataset.on : sw.dataset.off;
+    });
+  }
+})();
+</script>
 {% endblock %}

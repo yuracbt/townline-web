@@ -27,15 +27,17 @@
 </div>
 
 <div class="chips">
-  <a class="chip{% if not active_cat %} on{% endif %}" href="{{ url_for('dashboard') }}">All</a>
-  <a class="chip{% if active_cat == 'Saved' %} on{% endif %}" href="{{ url_for('dashboard', category='Saved') }}">★ Saved</a>
-  {% for c in cats if c != 'Saved' %}
-  <a class="chip{% if active_cat == c %} on{% endif %}" href="{{ url_for('dashboard', category=c) }}">{{ c }}</a>
+  {% for chip in chips %}
+  <a class="chip{% if chip.active %} on{% endif %}" href="{{ chip.url }}">{{ chip.label }}{% if chip.count %} <span class="count">{{ chip.count }}</span>{% endif %}</a>
   {% endfor %}
 </div>
 
 {% if not stories %}
-<p class="muted empty">No stories here yet. Add feeds on the <a href="{{ url_for('feeds_page') }}">Feeds</a> page, or wait for the next scan.</p>
+<p class="muted empty">
+  {% if unread_only %}No unread stories here — you're all caught up.
+  {% else %}No stories here yet. Add feeds on the <a href="{{ url_for('feeds_page') }}">Feeds</a> page, or wait for the next scan.
+  {% endif %}
+</p>
 {% endif %}
 
 <ul class="stories">

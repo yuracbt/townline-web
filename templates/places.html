@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Places — TownLine{% endblock %}
+{% block content %}
+<h1>Places</h1>
+<p class="muted">Local spots for {{ settings.get('town_name') or 'your town' }} — theatres, galleries, libraries, universities and more. Saved places open in a new tab.</p>
+
+<h2>Your places</h2>
+<ul class="feedlist">
+{% for p in places %}
+  <li class="feed">
+    <div>
+      <strong><a href="{{ p['url'] }}" target="_blank" rel="noopener">{{ p['name'] }}</a></strong>
+      <div class="muted small">{{ p['url'] }}</div>
+    </div>
+    <form method="post" action="{{ url_for('place_delete', pid=p['id']) }}"
+          onsubmit="return confirm('Remove this place?')">
+      <button type="submit" class="btn small danger">Remove</button>
+    </form>
+  </li>
+{% else %}
+  <li class="muted">No places saved yet — add some from the suggestions below.</li>
+{% endfor %}
+</ul>
+
+<h2>Add a place</h2>
+<div class="card">
+  <form method="post" action="{{ url_for('place_add') }}">
+    <label>Name <input name="name" placeholder="e.g. City Theatre"></label>
+    <label>Page URL <input name="url" type="url" placeholder="https://…" required></label>
+    <button type="submit">Add place</button>
+  </form>
+</div>
+
+<h2>Suggested places for <span id="place-town">{{ settings.get('town_name') or 'your town' }}</span></h2>
+<p class="muted small" id="place-status">Scanning for local places…</p>
+<ul class="feedlist" id="place-list"></ul>
+
+<script>
+(async () => {
+  const box = document.getElementById('place-list');
+  const status = document.getElementById('place-status');
+  try {
+    const r = await fetch('{{ url_for("api_places_suggestions") }}');
+    const data = await r.json();
+    const items = data.suggestions || [];
+    const townEl = document.getElementById('place-town');
+    if (townEl && data.town) townEl.textContent = data.town;
+    if (!items.length) {
+      status.textContent = data.town
+        ? 'No places found for ' + data.town + ' yet.'
+        : 'Set your town in Settings to get place suggestions.';
+      return;
+    }
+    status.textContent = items.length + ' suggestion(s) for ' + (data.town || 'your town') + ':';
+    for (const p of items) {
+      const li = document.createElement('li');
+      li.className = 'feed';
+      const info = document.createElement('div');
+      const strong = document.createElement('strong');
+      const link = document.createElement('a');
+      link.href = p.url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.textContent = p.name;
+      strong.appendChild(link);
+      if (p.kind) {
+        const pill = document.createElement('span');
+        pill.className = 'pill';
+        pill.textContent = p.kind;
+        strong.appendChild(document.createTextNode(' '));
+        strong.appendChild(pill);
+      }
+      if (p.origin === 'nearby') {
+        const pill = document.createElement('span');
+        pill.className = 'pill';
+        pill.textContent = 'found nearby';
+        pill.title = 'Discovered from OpenStreetMap around your location';
+        strong.appendChild(document.createTextNode(' '));
+        strong.appendChild(pill);
+      }
+      info.appendChild(strong);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn small';
+      btn.textContent = 'Add';
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        const fd = new FormData();
+        fd.append('name', p.name);
+        fd.append('url', p.url);
+        const resp = await fetch('{{ url_for("place_add") }}', {
+          method: 'POST',
+          body: fd,
+          headers: { 'X-Requested-With': 'fetch' }
+        });
+        let dup = false;
+        try { dup = (await resp.json()).duplicate === true; } catch (e) {}
+        btn.textContent = dup ? '✓ Already saved' : '✓ Saved';
+      });
+      li.appendChild(info);
+      li.appendChild(btn);
+      box.appendChild(li);
+    }
+  } catch (e) {
+    status.textContent = 'Could not scan for places right now — try again later.';
+  }
+})();
+</script>
+{% endblock %}

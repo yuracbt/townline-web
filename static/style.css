@@ -52,6 +52,12 @@ button:hover, .btn:hover { filter: brightness(0.93); }
 .error { color: var(--danger); }
 .empty { margin: 30px 0; }
 .dashhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.dashactions { display: flex; gap: 8px; flex-wrap: wrap; }
+.flashes { list-style: none; padding: 0; margin: 0 0 12px; }
+.flashes li {
+  background: var(--accent-soft); border: 1px solid var(--accent);
+  color: var(--ink); border-radius: 8px; padding: 10px 14px;
+}
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
 .chip {
   padding: 5px 13px; border-radius: 20px; background: var(--card);

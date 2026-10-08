@@ -5,12 +5,18 @@
 
 <div class="card">
   <h2>Your town</h2>
-  <p>Currently: <strong>{{ settings.get('town_name') or 'not set' }}</strong></p>
+  <p>Currently: <strong id="town-current">{{ settings.get('town_name') or 'not set' }}</strong></p>
+  <button type="button" class="btn" id="scan-near-btn">📍 Scan near me</button>
+  <p class="muted small" id="scan-near-status"></p>
   <label>Search by place name, postal code or ZIP
     <input id="locq" placeholder="e.g. Airdrie, T4B 0B5, 90210" autocomplete="off">
   </label>
   <ul id="locresults" class="locresults"></ul>
   <p class="muted small">Results come from OpenStreetMap Nominatim.</p>
+</div>
+
+<div class="card">
+  {% include "_suggestions.html" %}
 </div>
 
 <div class="card">
@@ -32,6 +38,37 @@
 </div>
 
 <script>
+document.getElementById('scan-near-btn').addEventListener('click', () => {
+  const status = document.getElementById('scan-near-status');
+  if (!navigator.geolocation) {
+    status.textContent = 'This browser does not support location.';
+    return;
+  }
+  status.textContent = 'Getting your location…';
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    status.textContent = 'Looking up your town…';
+    try {
+      const r = await fetch('{{ url_for("locate") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: pos.coords.latitude, lon: pos.coords.longitude })
+      });
+      const data = await r.json();
+      if (data.ok) {
+        document.getElementById('town-current').textContent = data.town;
+        status.textContent = 'Found you in ' + data.town + ' — loading feed suggestions…';
+        loadSuggestions();
+      } else {
+        status.textContent = 'Could not determine your town — try searching below.';
+      }
+    } catch (e) {
+      status.textContent = 'Lookup failed — try searching below.';
+    }
+  }, () => {
+    status.textContent = 'Location access was denied — search for your town instead.';
+  }, { timeout: 10000 });
+});
+
 const q = document.getElementById('locq');
 const box = document.getElementById('locresults');
 let timer = null;

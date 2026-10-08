@@ -14,12 +14,13 @@ import sqlite3
 import threading
 import time
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 import feedparser
 import requests
-from flask import (Flask, g, jsonify, redirect, render_template, request,
-                   session, url_for)
+from flask import (Flask, flash, g, jsonify, redirect, render_template,
+                   request, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from categorizer import categorize, think_source
@@ -125,6 +126,15 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_stories_user ON stories(user_id, published DESC);
         """
     )
+    # Migrations for databases created before these columns existed.
+    for ddl in (
+        "ALTER TABLE settings ADD COLUMN state TEXT DEFAULT ''",
+        "ALTER TABLE settings ADD COLUMN country_code TEXT DEFAULT ''",
+    ):
+        try:
+            db.execute(ddl)
+        except sqlite3.OperationalError:
+            pass  # column already there
     db.commit()
     db.close()
 
@@ -173,16 +183,22 @@ def rel_time(ts):
 
 
 def suggested_for_town(town_name, state="", country_code=""):
-    """Directory feeds whose match keys fit the town.
-    Keys are town substrings, '*alberta', or '*canada' (Android semantics)."""
+    """Directory feeds whose match keys fit the town (Android semantics).
+
+    Keys are town substrings, '*alberta' (Alberta towns), or '*canada'
+    (matches every Canadian user).
+    """
     t = (town_name or "").lower()
+    st = (state or "").lower()
+    alberta = ("alberta" in t or ", ab" in t or t.endswith(" ab")
+               or st == "alberta")
     out = []
     for f in FEED_DIRECTORY:
         for key in f.get("match", []):
-            if key == "*canada" and country_code.lower() == "ca":
-                hit = True
-            elif key == "*alberta" and state.lower() in ("alberta",):
-                hit = True
+            if key == "*canada":
+                hit = True  # directory is Canada-focused; always relevant
+            elif key == "*alberta":
+                hit = alberta
             elif not key.startswith("*") and key in t:
                 hit = True
             else:
@@ -191,6 +207,25 @@ def suggested_for_town(town_name, state="", country_code=""):
                 out.append(f)
                 break
     return out
+
+
+def is_working_feed(url):
+    """Port of Android's FeedDirectory.isWorkingFeed: only suggest feeds
+    that actually serve parseable RSS/Atom right now. One retry smooths
+    over transient hiccups (a dead feed fails twice, fast)."""
+    for _ in range(2):
+        try:
+            r = requests.get(url, headers={"User-Agent": UA}, timeout=12)
+            if r.status_code != 200:
+                continue
+            head = r.content[:65536].decode("utf-8", "ignore").lower()
+            is_feed = "<rss" in head or "<feed" in head
+            has_items = "<item" in head or "<entry" in head
+            if is_feed and has_items:
+                return True
+        except Exception:
+            pass
+    return False
 
 
 def seed_default_feeds(user_id, town_name, state="", country_code=""):
@@ -491,11 +526,37 @@ def feeds_page():
                           else "not scanned yet")
         feed_rows.append(d)
     have_urls = {f["url"] for f in feeds}
-    suggested = [f for f in suggested_for_town(settings.get("town_name", ""))
-                 if f["url"] not in have_urls]
     return render_template("feeds.html", user=user, settings=settings,
-                           feeds=feed_rows, suggested=suggested,
-                           rel_time=rel_time)
+                           feeds=feed_rows, rel_time=rel_time)
+
+
+@app.route("/api/suggestions")
+@login_required
+def api_suggestions():
+    """Feeds suggested for the user's town, verified working right now —
+    like the Android app's Discover screen. Excludes already-added feeds."""
+    user = current_user()
+    db = get_db()
+    settings = get_settings(user["id"])
+    have = {r["url"] for r in
+            db.execute("SELECT url FROM feeds WHERE user_id = ?",
+                       (user["id"],)).fetchall()}
+    candidates = [
+        f for f in suggested_for_town(settings.get("town_name", ""),
+                                      settings.get("state", ""),
+                                      settings.get("country_code", ""))
+        if f["url"] not in have
+    ]
+    working = []
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = pool.map(is_working_feed, [f["url"] for f in candidates])
+    for f, ok in zip(candidates, results):
+        if ok:
+            working.append({"name": f["name"], "url": f["url"]})
+    return jsonify({
+        "town": settings.get("town_name", ""),
+        "suggestions": working,
+    })
 
 
 @app.route("/feeds/add", methods=["POST"])
@@ -503,6 +564,7 @@ def feeds_page():
 def feed_add():
     name = request.form.get("name", "").strip()
     url = request.form.get("url", "").strip()
+    added = False
     if url:
         if not name:
             name = url
@@ -514,10 +576,15 @@ def feed_add():
                 (session["user_id"], name, url),
             )
             db.commit()
+            added = True
         except sqlite3.IntegrityError:
             pass
         threading.Thread(target=scan_user, args=(session["user_id"],),
                          daemon=True).start()
+    wants_json = (request.headers.get("X-Requested-With") == "fetch"
+                  or "application/json" in request.headers.get("Accept", ""))
+    if wants_json:
+        return jsonify({"ok": added, "name": name, "url": url})
     return redirect(url_for("feeds_page"))
 
 
@@ -547,7 +614,8 @@ def feed_delete(fid):
 def scan_now():
     threading.Thread(target=scan_user, args=(session["user_id"],),
                      daemon=True).start()
-    return redirect(url_for("feeds_page"))
+    flash("Scanning your feeds — new stories will appear in a moment.")
+    return redirect(request.referrer or url_for("feeds_page"))
 
 
 # ---------------------------------------------------------------- settings
@@ -625,10 +693,10 @@ def set_location():
         # code ("90210, Los Angeles, …" → first part would be the ZIP).
         town = city or name.split(",")[0].strip()
         db.execute(
-            "UPDATE settings SET town_name = ?, lat = ?, lon = ? "
-            "WHERE user_id = ?",
+            "UPDATE settings SET town_name = ?, lat = ?, lon = ?, "
+            "state = ?, country_code = ? WHERE user_id = ?",
             (town, float(lat or 0) or None, float(lon or 0) or None,
-             user["id"]),
+             state, country_code, user["id"]),
         )
         db.commit()
         seed_default_feeds(user["id"], town, state=state,

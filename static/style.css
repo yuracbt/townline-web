@@ -70,6 +70,12 @@ button:hover, .btn:hover { filter: brightness(0.93); }
   text-decoration: none; font-size: 0.9rem;
 }
 .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip .count {
+  display: inline-block; min-width: 22px; text-align: center;
+  background: var(--accent); color: #fff; border-radius: 11px;
+  font-size: 0.75rem; font-weight: 700; padding: 1px 7px; margin-left: 5px;
+}
+.chip.on .count { background: #fff; color: var(--accent); }
 .stories { list-style: none; padding: 0; margin: 0; }
 .story {
   background: var(--card); border: 1px solid var(--line);

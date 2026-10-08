@@ -44,7 +44,7 @@
 {% for s in stories %}
   <li class="story{% if s['is_read'] %} read{% endif %}">
     <div class="srow">
-      <a class="stitle" href="{{ s['url'] }}" target="_blank" rel="noopener">{{ s['title'] }}</a>
+      <a class="stitle" href="{{ url_for('open_story', sid=s['id']) }}" target="_blank" rel="noopener">{{ s['title'] }}</a>
       <span class="cat">{{ s['category'] }}</span>
     </div>
     <div class="smeta">

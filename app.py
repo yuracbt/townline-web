@@ -11,6 +11,7 @@ chosen interval (minimum 5 minutes).
 import json
 import os
 import re
+import secrets
 import sqlite3
 import threading
 import time
@@ -151,11 +152,26 @@ def init_db():
         "ALTER TABLE settings ADD COLUMN state TEXT DEFAULT ''",
         "ALTER TABLE settings ADD COLUMN country_code TEXT DEFAULT ''",
         "ALTER TABLE settings ADD COLUMN story_limit INTEGER DEFAULT 200",
+        "ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''",
+        "ALTER TABLE users ADD COLUMN is_blocked INTEGER DEFAULT 0",
     ):
         try:
             db.execute(ddl)
         except sqlite3.OperationalError:
             pass  # column already there
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS password_resets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            token TEXT UNIQUE NOT NULL,
+            expires_at INTEGER NOT NULL,
+            used INTEGER DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
     # Drop duplicate feeds/places that slipped in before the dedup guards.
     _dedup_table(db, "feeds")
     _dedup_table(db, "places")
@@ -173,16 +189,116 @@ def current_user():
     return db.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
 
 
+# ---------------------------------------------------------------- auth helpers
+
+ADMIN_USERNAME = "yuriy.chobotok@gmail.com"
+
+EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+
+
+def valid_email(addr):
+    return bool(addr and EMAIL_RE.match(addr.strip()))
+
+
+def password_problems(pw):
+    """Return a list of unmet strength requirements (empty = strong enough)."""
+    problems = []
+    if len(pw or "") < 8:
+        problems.append("at least 8 characters")
+    if not re.search(r"[A-Z]", pw or ""):
+        problems.append("at least one capital letter")
+    if not re.search(r"[0-9]", pw or ""):
+        problems.append("at least one number")
+    if not re.search(r"[^A-Za-z0-9]", pw or ""):
+        problems.append("at least one special character")
+    return problems
+
+
+# Outgoing mail for password resets. Configure on the server, e.g.
+#   SMTP_HOST=smtp.example.com SMTP_PORT=587 SMTP_USER=... SMTP_PASS=... \
+#   SMTP_FROM="TownLine <noreply@example.com>"
+# Until it is configured, reset links stay in the admin panel so the
+# administrator can forward them manually.
+SMTP_HOST = os.environ.get("SMTP_HOST", "")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587") or 587)
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASS = os.environ.get("SMTP_PASS", "")
+SMTP_FROM = os.environ.get("SMTP_FROM", "")
+
+
+def email_configured():
+    return bool(SMTP_HOST and SMTP_FROM)
+
+
+def send_reset_email(to_addr, reset_link):
+    """Send the password-reset link. Returns True on success."""
+    if not email_configured():
+        return False
+    import smtplib
+    from email.message import EmailMessage
+    msg = EmailMessage()
+    msg["Subject"] = "TownLine password reset"
+    msg["From"] = SMTP_FROM
+    msg["To"] = to_addr
+    msg.set_content(
+        "Someone requested a password reset for your TownLine account.\n\n"
+        "Reset your password here (valid for 1 hour):\n"
+        f"{reset_link}\n\n"
+        "If this was not you, just ignore this message."
+    )
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
+            s.starttls()
+            if SMTP_USER:
+                s.login(SMTP_USER, SMTP_PASS)
+            s.send_message(msg)
+        return True
+    except Exception as e:  # noqa: BLE001 - delivery failure is non-fatal
+        app.logger.warning("reset email failed: %s", e)
+        return False
+
+
 def login_required(view):
     from functools import wraps
 
     @wraps(view)
     def wrapper(*a, **kw):
-        if not current_user():
+        user = current_user()
+        if not user:
+            return redirect(url_for("login"))
+        if user["is_blocked"]:
+            # Blocked while a session was still alive: kill it.
+            session.pop("user_id", None)
+            flash("This account has been blocked. Contact the administrator.")
             return redirect(url_for("login"))
         return view(*a, **kw)
 
     return wrapper
+
+
+def admin_required(view):
+    from functools import wraps
+
+    @wraps(view)
+    def wrapper(*a, **kw):
+        user = current_user()
+        if not user or user["username"] != ADMIN_USERNAME:
+            flash("That page is for the administrator only.")
+            return redirect(url_for("dashboard"))
+        return view(*a, **kw)
+
+    return wrapper
+
+
+@app.context_processor
+def inject_admin():
+    is_admin = False
+    uid = session.get("user_id")
+    if uid:
+        row = get_db().execute("SELECT username FROM users WHERE id = ?",
+                               (uid,)).fetchone()
+        is_admin = bool(row and row["username"] == ADMIN_USERNAME)
+    return {"is_admin": is_admin}
 
 
 def get_settings(user_id):
@@ -765,18 +881,25 @@ def register():
     error = None
     if request.method == "POST":
         username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip()
         password = request.form.get("password", "")
         db = get_db()
-        if not username or not password:
-            error = "Username and password are required."
+        pw_problems = password_problems(password)
+        if not username or not email or not password:
+            error = "Username, email and password are all required."
+        elif not valid_email(email):
+            error = "That does not look like a valid email address."
         elif db.execute("SELECT id FROM users WHERE username = ?",
                         (username,)).fetchone():
-            error = "That username is taken."
+            error = "That username is taken — please pick another."
+        elif pw_problems:
+            error = "Password needs " + ", ".join(pw_problems) + "."
         else:
             pw_hash = generate_password_hash(password, method="pbkdf2:sha256")
             cur = db.execute(
-                "INSERT INTO users (username, pw_hash, created_at) VALUES (?,?,?)",
-                (username, pw_hash, int(time.time())),
+                "INSERT INTO users (username, email, pw_hash, created_at) "
+                "VALUES (?,?,?,?)",
+                (username, email, pw_hash, int(time.time())),
             )
             uid = cur.lastrowid
             db.execute("INSERT INTO settings (user_id) VALUES (?)", (uid,))
@@ -800,9 +923,13 @@ def login():
         user = db.execute("SELECT * FROM users WHERE username = ?",
                           (username,)).fetchone()
         if user and check_password_hash(user["pw_hash"], password):
-            session["user_id"] = user["id"]
-            return redirect(url_for("dashboard"))
-        error = "Wrong username or password."
+            if user["is_blocked"]:
+                error = "This account has been blocked. Contact the administrator."
+            else:
+                session["user_id"] = user["id"]
+                return redirect(url_for("dashboard"))
+        else:
+            error = "Wrong username or password."
     return render_template("login.html", error=error)
 
 
@@ -810,6 +937,164 @@ def login():
 def logout():
     session.pop("user_id", None)
     return redirect(url_for("login"))
+
+
+# ---------------------------------------------------------------- password recovery
+
+RESET_TOKEN_TTL = 3600  # reset links live for 1 hour
+
+
+@app.route("/forgot", methods=["GET", "POST"])
+def forgot_password():
+    if current_user():
+        return redirect(url_for("dashboard"))
+    message = None
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        db = get_db()
+        user = db.execute("SELECT * FROM users WHERE username = ?",
+                          (username,)).fetchone()
+        if user and user["email"]:
+            token = secrets.token_urlsafe(32)
+            db.execute(
+                "INSERT INTO password_resets (user_id, token, expires_at, "
+                "created_at) VALUES (?,?,?,?)",
+                (user["id"], token, int(time.time()) + RESET_TOKEN_TTL,
+                 int(time.time())),
+            )
+            db.commit()
+            reset_link = url_for("password_reset", token=token, _external=True)
+            send_reset_email(user["email"], reset_link)
+        # Same message either way: do not reveal which usernames exist.
+        message = ("If that username exists and has an email on file, a "
+                   "password-reset link is on its way. It is valid for "
+                   "1 hour.")
+    return render_template("forgot.html", message=message)
+
+
+@app.route("/reset/<token>", methods=["GET", "POST"])
+def password_reset(token):
+    if current_user():
+        return redirect(url_for("dashboard"))
+    db = get_db()
+    row = db.execute(
+        "SELECT pr.*, u.username FROM password_resets pr "
+        "JOIN users u ON u.id = pr.user_id "
+        "WHERE pr.token = ? AND pr.used = 0 AND pr.expires_at > ?",
+        (token, int(time.time())),
+    ).fetchone()
+    if not row:
+        return render_template("reset.html", invalid=True)
+    error = None
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm", "")
+        pw_problems = password_problems(password)
+        if password != confirm:
+            error = "The two passwords do not match."
+        elif pw_problems:
+            error = "Password needs " + ", ".join(pw_problems) + "."
+        else:
+            db.execute("UPDATE users SET pw_hash = ? WHERE id = ?",
+                       (generate_password_hash(password,
+                                                method="pbkdf2:sha256"),
+                        row["user_id"]))
+            db.execute("UPDATE password_resets SET used = 1 WHERE id = ?",
+                       (row["id"],))
+            db.commit()
+            flash("Your password was reset. Log in with the new one.")
+            return redirect(url_for("login"))
+    return render_template("reset.html", invalid=False, error=error,
+                           username=row["username"])
+
+
+# ---------------------------------------------------------------- administration
+
+@app.route("/admin")
+@login_required
+@admin_required
+def admin_panel():
+    db = get_db()
+    users = db.execute(
+        "SELECT u.*, "
+        "(SELECT COUNT(*) FROM stories s WHERE s.user_id = u.id) AS stories, "
+        "(SELECT COUNT(*) FROM feeds f WHERE f.user_id = u.id) AS feeds "
+        "FROM users u ORDER BY u.created_at DESC"
+    ).fetchall()
+    tokens = db.execute(
+        "SELECT pr.token, pr.expires_at, u.username, u.email "
+        "FROM password_resets pr JOIN users u ON u.id = pr.user_id "
+        "WHERE pr.used = 0 AND pr.expires_at > ? "
+        "ORDER BY pr.created_at DESC",
+        (int(time.time()),),
+    ).fetchall()
+    now = int(time.time())
+    user_rows = []
+    for u in users:
+        d = dict(u)
+        d["created_str"] = datetime.fromtimestamp(
+            u["created_at"], tz=timezone.utc).strftime("%Y-%m-%d")
+        user_rows.append(d)
+    token_rows = []
+    for t in tokens:
+        d = dict(t)
+        mins = max(0, (t["expires_at"] - now) // 60)
+        d["expires_str"] = f"expires in {mins} min"
+        d["link"] = url_for("password_reset", token=t["token"],
+                            _external=True)
+        token_rows.append(d)
+    return render_template("admin.html", users=user_rows, tokens=token_rows,
+                           admin_username=ADMIN_USERNAME,
+                           email_ok=email_configured(),
+                           user=current_user())
+
+
+@app.route("/admin/block", methods=["POST"])
+@login_required
+@admin_required
+def admin_block():
+    target_id = int(request.form.get("user_id", 0) or 0)
+    me = current_user()
+    db = get_db()
+    target = db.execute("SELECT * FROM users WHERE id = ?",
+                        (target_id,)).fetchone()
+    if not target:
+        flash("User not found.")
+    elif target["id"] == me["id"]:
+        flash("You cannot block your own admin account.")
+    else:
+        new_state = 0 if target["is_blocked"] else 1
+        db.execute("UPDATE users SET is_blocked = ? WHERE id = ?",
+                   (new_state, target_id))
+        db.commit()
+        flash(("Blocked " if new_state else "Unblocked ") +
+              target["username"] + ".")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/delete", methods=["POST"])
+@login_required
+@admin_required
+def admin_delete():
+    target_id = int(request.form.get("user_id", 0) or 0)
+    me = current_user()
+    db = get_db()
+    target = db.execute("SELECT * FROM users WHERE id = ?",
+                        (target_id,)).fetchone()
+    if not target:
+        flash("User not found.")
+    elif target["id"] == me["id"]:
+        flash("You cannot delete your own admin account.")
+    else:
+        # Manual cascade: SQLite foreign keys are not enforced here.
+        for table in ("password_resets", "stories", "feeds", "places",
+                      "settings"):
+            db.execute(f"DELETE FROM {table} WHERE user_id = ?",
+                       (target_id,))
+        db.execute("DELETE FROM users WHERE id = ?", (target_id,))
+        db.commit()
+        flash("Deleted " + target["username"] + " and all their data.")
+    return redirect(url_for("admin_panel"))
 
 
 # ---------------------------------------------------------------- dashboard
@@ -1237,6 +1522,22 @@ def settings_page():
     settings = get_settings(user["id"])
     return render_template("settings.html", user=user, settings=settings,
                            intervals=INTERVALS)
+
+
+@app.route("/settings/account", methods=["POST"])
+@login_required
+def settings_account():
+    user = current_user()
+    email = request.form.get("email", "").strip()
+    if not valid_email(email):
+        flash("That does not look like a valid email address.")
+    else:
+        db = get_db()
+        db.execute("UPDATE users SET email = ? WHERE id = ?",
+                   (email, user["id"]))
+        db.commit()
+        flash("Email address saved.")
+    return redirect(url_for("settings_page"))
 
 
 @app.route("/api/geocode")

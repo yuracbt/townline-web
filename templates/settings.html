@@ -4,6 +4,16 @@
 <h1>Settings</h1>
 
 <div class="card">
+  <h2>Account</h2>
+  <form method="post" action="{{ url_for('settings_account') }}">
+    <label>Email (used for password recovery)
+      <input type="email" name="email" value="{{ user['email'] or '' }}" autocomplete="email" required>
+    </label>
+    <button type="submit">Save email</button>
+  </form>
+</div>
+
+<div class="card">
   <h2>Your town</h2>
   <p>Currently: <strong id="town-current">{{ settings.get('town_name') or 'not set' }}</strong></p>
   <button type="button" class="btn" id="scan-near-btn">📍 Scan near me</button>

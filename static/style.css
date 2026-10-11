@@ -135,3 +135,9 @@ button:hover, .btn:hover { filter: brightness(0.93); }
   .dashhead { flex-direction: column; }
   .feed { flex-direction: column; align-items: flex-start; }
 }
+
+/* Admin */
+.admintable { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.admintable th, .admintable td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.admintable tr.blocked td { opacity: 0.65; }
+.linklike.danger { color: var(--danger); }

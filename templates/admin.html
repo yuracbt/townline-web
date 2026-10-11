@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Admin — TownLine{% endblock %}
+{% block content %}
+<h1>Administration</h1>
+
+<div class="card">
+  <h2>Users ({{ users|length }})</h2>
+  <table class="admintable">
+    <thead>
+      <tr><th>Username</th><th>Email</th><th>Joined</th><th>Stories</th><th>Feeds</th><th>Status</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+    {% for u in users %}
+      <tr{% if u['is_blocked'] %} class="blocked"{% endif %}>
+        <td><strong>{{ u['username'] }}</strong>{% if u['username'] == admin_username %} <span class="muted small">(you)</span>{% endif %}</td>
+        <td>{{ u['email'] or '—' }}</td>
+        <td>{{ u['created_str'] }}</td>
+        <td>{{ u['stories'] }}</td>
+        <td>{{ u['feeds'] }}</td>
+        <td>{% if u['is_blocked'] %}<span class="error">Blocked</span>{% else %}Active{% endif %}</td>
+        <td>
+          {% if u['username'] != admin_username %}
+          <form method="post" action="{{ url_for('admin_block') }}" style="display:inline">
+            <input type="hidden" name="user_id" value="{{ u['id'] }}">
+            <button type="submit" class="linklike">{% if u['is_blocked'] %}Unblock{% else %}Block{% endif %}</button>
+          </form>
+          |
+          <form method="post" action="{{ url_for('admin_delete') }}" style="display:inline"
+                onsubmit="return confirm('Delete {{ u['username'] }} and ALL their data? This cannot be undone.')">
+            <input type="hidden" name="user_id" value="{{ u['id'] }}">
+            <button type="submit" class="linklike danger">Delete</button>
+          </form>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2>Password reset requests</h2>
+  {% if email_ok %}
+    <p class="muted small">Email delivery is configured — reset links are emailed automatically.</p>
+  {% else %}
+    <p class="muted small">Email delivery is <strong>not configured</strong> (set SMTP_HOST/SMTP_FROM on the server). Outstanding links are listed below so you can forward them manually.</p>
+  {% endif %}
+  {% if tokens %}
+  <table class="admintable">
+    <thead><tr><th>User</th><th>Email</th><th>Link</th><th>Validity</th></tr></thead>
+    <tbody>
+    {% for t in tokens %}
+      <tr>
+        <td>{{ t['username'] }}</td>
+        <td>{{ t['email'] }}</td>
+        <td><input type="text" readonly value="{{ t['link'] }}" onclick="this.select()" style="width:100%"></td>
+        <td>{{ t['expires_str'] }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="muted">No outstanding reset requests.</p>
+  {% endif %}
+</div>
+{% endblock %}

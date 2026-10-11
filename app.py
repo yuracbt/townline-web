@@ -1101,10 +1101,25 @@ def feed_delete(fid):
 @app.route("/feeds/scan_now", methods=["POST"])
 @login_required
 def scan_now():
+    session["scan_requested_at"] = int(time.time())
     threading.Thread(target=scan_user, args=(session["user_id"],),
                      daemon=True).start()
-    flash("Scanning your feeds — new stories will appear in a moment.")
+    flash("Scanning your feeds — new stories will appear in a moment.", "scan")
     return redirect(request.referrer or url_for("feeds_page"))
+
+
+@app.route("/api/scan_status")
+@login_required
+def scan_status():
+    """Has the scan requested via 'Scan now' finished yet?"""
+    requested = session.get("scan_requested_at", 0)
+    if not requested:
+        return {"status": "idle"}
+    last = get_settings(session["user_id"]).get("last_scan") or 0
+    if last >= requested:
+        session.pop("scan_requested_at", None)
+        return {"status": "done"}
+    return {"status": "scanning"}
 
 
 # ---------------------------------------------------------------- places

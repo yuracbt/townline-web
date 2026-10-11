@@ -20,10 +20,10 @@
   {% endif %}
 </header>
 <main class="wrap">
-{% with messages = get_flashed_messages() %}
+{% with messages = get_flashed_messages(with_categories=true) %}
 {% if messages %}
 <ul class="flashes">
-{% for m in messages %}<li>{{ m }}</li>{% endfor %}
+{% for cat, m in messages %}<li{% if cat == 'scan' %} id="scan-banner"{% endif %}>{{ m }}</li>{% endfor %}
 </ul>
 {% endif %}
 {% endwith %}

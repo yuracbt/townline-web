@@ -121,10 +121,67 @@
     });
   }
   var sw = document.getElementById('unreadSwitch');
-  if (sw) {
-    sw.addEventListener('change', function () {
-      window.location.href = sw.checked ? sw.dataset.on : sw.dataset.off;
-    });
+  wireSwitch(sw);
+  function wireSwitch(sw) {
+    if (sw && !sw.dataset.wired) {
+      sw.dataset.wired = '1';
+      sw.addEventListener('change', function () {
+        window.location.href = sw.checked ? sw.dataset.on : sw.dataset.off;
+      });
+    }
+  }
+
+  // "Scan now" feedback: keep the banner while the scan runs; once the
+  // story lines refresh, leave the banner 7s so it stays readable, then fade.
+  var banner = document.getElementById('scan-banner');
+  if (banner) {
+    var tries = 0;
+    var timer = setInterval(function () {
+      tries++;
+      fetch('{{ url_for('scan_status') }}', {credentials: 'same-origin'})
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.status === 'done') {
+            clearInterval(timer);
+            refreshStories();
+          } else if (data.status !== 'scanning' || tries >= 150) {
+            clearInterval(timer); // idle or ~5 min timeout: leave banner as-is
+          }
+        })
+        .catch(function () { clearInterval(timer); });
+    }, 2000);
+  }
+  function swapSel(sel, doc, insertMode, anchorSel) {
+    var fresh = doc.querySelector(sel), cur = document.querySelector(sel);
+    if (fresh && cur) { cur.innerHTML = fresh.innerHTML; }
+    else if (fresh && !cur && insertMode) {
+      var anchor = document.querySelector(anchorSel);
+      if (anchor) anchor.insertAdjacentHTML(insertMode, fresh.outerHTML);
+    }
+    else if (!fresh && cur) { cur.remove(); }
+  }
+  function refreshStories() {
+    fetch(window.location.href, {credentials: 'same-origin'})
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        swapSel('.dashhead', doc);
+        swapSel('.chips', doc);
+        wireSwitch(document.getElementById('unreadSwitch'));
+        swapSel('p.empty', doc, 'beforebegin', 'ul.stories');
+        var stories = doc.querySelector('ul.stories');
+        var cur = document.querySelector('ul.stories');
+        if (stories && cur) cur.innerHTML = stories.innerHTML;
+        swapSel('nav.pager', doc, 'afterend', 'ul.stories');
+      })
+      .catch(function () {})
+      .finally(function () {
+        setTimeout(function () {
+          banner.style.transition = 'opacity .6s';
+          banner.style.opacity = '0';
+          setTimeout(function () { banner.remove(); }, 650);
+        }, 7000);
+      });
   }
 })();
 </script>

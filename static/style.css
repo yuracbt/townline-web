@@ -25,7 +25,7 @@ body {
 .brand { font-weight: 700; font-size: 1.2rem; color: var(--accent); text-decoration: none; }
 .topbar nav a { margin-left: 16px; color: var(--ink); text-decoration: none; }
 .topbar nav a:hover { color: var(--accent); }
-.wrap { max-width: 860px; margin: 0 auto; padding: 20px; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 20px; }
 .card {
   background: var(--card); border: 1px solid var(--line);
   border-radius: 10px; padding: 18px; margin: 16px 0;

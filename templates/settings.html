@@ -14,6 +14,19 @@
 </div>
 
 <div class="card">
+  <h2>Appearance</h2>
+  <form method="post" action="{{ url_for('settings_theme') }}">
+    <label>Theme
+      <select name="theme">
+        <option value="light"{% if theme != 'dark' %} selected{% endif %}>Light</option>
+        <option value="dark"{% if theme == 'dark' %} selected{% endif %}>Dark</option>
+      </select>
+    </label>
+    <button type="submit">Save appearance</button>
+  </form>
+</div>
+
+<div class="card">
   <h2>Your town</h2>
   <p>Currently: <strong id="town-current">{{ settings.get('town_name') or 'not set' }}</strong></p>
   <button type="button" class="btn" id="scan-near-btn">📍 Scan near me</button>

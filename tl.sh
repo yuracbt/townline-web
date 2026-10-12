@@ -7,6 +7,7 @@
 #   ./tl.sh restart  restart the app on the Oracle VM (no code changes)
 #   ./tl.sh ssh      open a shell on the Oracle VM
 #   ./tl.sh logs     show the app's recent log on the Oracle VM
+#   ./tl.sh https    set up nginx + Let's Encrypt HTTPS (after DNS points here)
 #
 # One-time setup:
 #   1. git clone https://github.com/yuracbt/townline-web.git && cd townline-web
@@ -65,5 +66,10 @@ case "${1:-run}" in
     ;;
   ssh) shift; ssh_vm "$@" ;;
   logs) ssh_vm "sudo journalctl -u townline -n 50 --no-pager" ;;
-  *) echo "Usage: $0 [run|update|deploy|restart|ssh|logs]"; exit 1 ;;
+  https)
+    # Point townsline.com / www at the VM in Porkbun first, then run this.
+    shift
+    need_key
+    ssh_vm "sudo bash $APP_DIR/deploy/https-setup.sh $@" ;;
+  *) echo "Usage: $0 [run|update|deploy|restart|ssh|logs|https]"; exit 1 ;;
 esac

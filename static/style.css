@@ -141,3 +141,31 @@ button:hover, .btn:hover { filter: brightness(0.93); }
 .admintable th, .admintable td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
 .admintable tr.blocked td { opacity: 0.65; }
 .linklike.danger { color: var(--danger); }
+
+/* Removable category tiles: small × badge on the chip corner. */
+.chipwrap { position: relative; display: inline-block; }
+.chipx {
+  position: absolute; top: -8px; right: -6px;
+  width: 18px; height: 18px; padding: 0; margin: 0;
+  border-radius: 50%; border: 1px solid var(--danger);
+  background: var(--card); color: var(--danger);
+  font-size: 12px; line-height: 1; cursor: pointer;
+}
+.chipx:hover { background: var(--danger); color: #fff; }
+
+/* "Are you sure?" confirmation modal. */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-backdrop[hidden] { display: none; }
+.modal {
+  background: var(--card); border-radius: 12px;
+  border: 1px solid var(--line);
+  max-width: 420px; width: 100%; padding: 22px;
+}
+.modal h3 { margin-top: 0; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+.modal-actions .btn { margin-top: 0; }

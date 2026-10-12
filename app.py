@@ -158,6 +158,7 @@ def init_db():
         "ALTER TABLE settings ADD COLUMN state TEXT DEFAULT ''",
         "ALTER TABLE settings ADD COLUMN country_code TEXT DEFAULT ''",
         "ALTER TABLE settings ADD COLUMN story_limit INTEGER DEFAULT 200",
+        "ALTER TABLE settings ADD COLUMN theme TEXT DEFAULT 'light'",
         "ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''",
         "ALTER TABLE users ADD COLUMN is_blocked INTEGER DEFAULT 0",
     ):
@@ -334,12 +335,18 @@ def admin_required(view):
 @app.context_processor
 def inject_admin():
     is_admin = False
+    theme = "light"
     uid = session.get("user_id")
     if uid:
-        row = get_db().execute("SELECT username FROM users WHERE id = ?",
-                               (uid,)).fetchone()
+        db = get_db()
+        row = db.execute("SELECT username FROM users WHERE id = ?",
+                         (uid,)).fetchone()
         is_admin = bool(row and row["username"] == ADMIN_USERNAME)
-    return {"is_admin": is_admin}
+        trow = db.execute("SELECT theme FROM settings WHERE user_id = ?",
+                          (uid,)).fetchone()
+        if trow and trow["theme"] in ("light", "dark"):
+            theme = trow["theme"]
+    return {"is_admin": is_admin, "theme": theme}
 
 
 def get_settings(user_id):
@@ -1646,6 +1653,19 @@ def settings_page():
     settings = get_settings(user["id"])
     return render_template("settings.html", user=user, settings=settings,
                            intervals=INTERVALS)
+
+
+@app.route("/settings/theme", methods=["POST"])
+@login_required
+def settings_theme():
+    theme = request.form.get("theme", "light")
+    if theme not in ("light", "dark"):
+        theme = "light"
+    db = get_db()
+    db.execute("UPDATE settings SET theme = ? WHERE user_id = ?",
+               (theme, session["user_id"]))
+    db.commit()
+    return redirect(url_for("settings_page"))
 
 
 @app.route("/settings/account", methods=["POST"])

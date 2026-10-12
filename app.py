@@ -1211,11 +1211,6 @@ def dashboard():
         "SELECT category, COUNT(*) c FROM stories "
         "WHERE user_id = ? AND is_read = 0 GROUP BY category",
         (user["id"],)).fetchall()}
-    cat_totals = {r["category"]: r["c"] for r in db.execute(
-        "SELECT category, COUNT(*) c FROM stories "
-        "WHERE user_id = ? GROUP BY category",
-        (user["id"],)).fetchall()}
-    total_stories = sum(cat_totals.values())
     unread_total = sum(unread_counts.values())
     unread_saved = db.execute(
         "SELECT COUNT(*) c FROM stories WHERE user_id = ? AND is_read = 0 "
@@ -1255,7 +1250,6 @@ def dashboard():
             "url": chip_url(category=c, unread=unread_only),
             "count": unread_counts.get(c, 0),
             "active": active_cat == c,
-            "removable": True,
         })
 
     where = "WHERE s.user_id = ?"
@@ -1295,7 +1289,7 @@ def dashboard():
         "dashboard.html", user=user, settings=settings, chips=chips,
         active_cat=active_cat, unread=unread_total, unread_only=unread_only,
         stories=stories, rel_time=rel_time, page=page, total_pages=total_pages,
-        page_url=page_url, total_stories=total_stories, cat_totals=cat_totals,
+        page_url=page_url,
         unread_on_url=chip_url(category=active_cat or None, unread=True),
         unread_off_url=chip_url(category=active_cat or None, unread=False),
     )
@@ -1326,7 +1320,8 @@ def mark_all_read():
 @app.route("/stories/clear", methods=["POST"])
 @login_required
 def clear_stories():
-    """Delete every story of the current user ("clean news line")."""
+    """Delete every story of the current user ("clean news line").
+    NOTE: UI hidden for now (2026-10-11) — endpoint kept for easy return."""
     db = get_db()
     n = db.execute("SELECT COUNT(*) c FROM stories WHERE user_id = ?",
                    (session["user_id"],)).fetchone()["c"]
@@ -1341,7 +1336,8 @@ def clear_stories():
 @login_required
 def clear_category():
     """Delete all of the current user's stories in one category
-    ("remove filter tile")."""
+    ("remove filter tile").
+    NOTE: UI hidden for now (2026-10-11) — endpoint kept for easy return."""
     category = request.form.get("category", "")
     db = get_db()
     n = db.execute(

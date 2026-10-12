@@ -23,15 +23,12 @@
       <button type="submit" class="btn ghost" title="Scan all your feeds right now">↻ Scan now</button>
     </form>
     <a class="btn ghost" href="{{ url_for('rethink') }}" title="Re-apply the categorization rules to every stored story">↻ Rethink categories</a>
-    {% if total_stories %}
-    <button type="button" class="btn ghost" id="cleanBtn" title="Delete all stories">🧹 Clean news line</button>
-    {% endif %}
   </div>
 </div>
 
 <div class="chips">
   {% for chip in chips %}
-  <span class="chipwrap"><a class="chip{% if chip.active %} on{% endif %}" href="{{ chip.url }}">{{ chip.label }}{% if chip.count %} <span class="count" data-unread-count>{{ chip.count }}</span>{% endif %}</a>{% if chip.removable %}<button type="button" class="chipx" data-cat="{{ chip.label }}" data-count="{{ cat_totals.get(chip.label, 0) }}" title="Remove the “{{ chip.label }}” tile">×</button>{% endif %}</span>
+  <a class="chip{% if chip.active %} on{% endif %}" href="{{ chip.url }}">{{ chip.label }}{% if chip.count %} <span class="count" data-unread-count>{{ chip.count }}</span>{% endif %}</a>
   {% endfor %}
   <label class="switch-wrap" title="Show only unread stories">
     <span class="switch">
@@ -81,20 +78,6 @@
   {% endif %}
 </nav>
 {% endif %}
-
-<div class="modal-backdrop" id="confirmModal" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cmTitle">
-    <h3 id="cmTitle">Are you sure?</h3>
-    <p id="cmText"></p>
-    <div class="modal-actions">
-      <button type="button" class="btn ghost" id="cmCancel">Cancel</button>
-      <form id="cmForm" method="post" class="inline-form">
-        <input type="hidden" name="category" id="cmCategory" value="">
-        <button type="submit" class="btn danger" id="cmOk">Yes, remove</button>
-      </form>
-    </div>
-  </div>
-</div>
 
 <script>
 (function () {
@@ -185,7 +168,6 @@
         swapSel('.dashhead', doc);
         swapSel('.chips', doc);
         wireSwitch(document.getElementById('unreadSwitch'));
-        document.querySelectorAll('.chipx').forEach(wireChipx);
         swapSel('p.empty', doc, 'beforebegin', 'ul.stories');
         var stories = doc.querySelector('ul.stories');
         var cur = document.querySelector('ul.stories');
@@ -200,50 +182,6 @@
           setTimeout(function () { banner.remove(); }, 650);
         }, 2000);
       });
-  }
-  // "Are you sure?" confirmation for destructive actions:
-  // cleaning the whole news line and removing a category tile.
-  var modal = document.getElementById('confirmModal');
-  var cmForm = document.getElementById('cmForm');
-  function askConfirm(title, text, action, category, okLabel) {
-    document.getElementById('cmTitle').textContent = title;
-    document.getElementById('cmText').textContent = text;
-    cmForm.action = action;
-    document.getElementById('cmCategory').value = category || '';
-    document.getElementById('cmOk').textContent = okLabel;
-    modal.hidden = false;
-  }
-  function closeConfirm() { modal.hidden = true; }
-  document.getElementById('cmCancel').addEventListener('click', closeConfirm);
-  modal.addEventListener('click', function (e) {
-    if (e.target === modal) closeConfirm();
-  });
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && !modal.hidden) closeConfirm();
-  });
-  var cleanBtn = document.getElementById('cleanBtn');
-  if (cleanBtn) {
-    cleanBtn.addEventListener('click', function () {
-      askConfirm(
-        'Clean news line?',
-        'Remove all {{ total_stories }} stories? This cannot be undone.',
-        '{{ url_for('clear_stories') }}', '', 'Yes, clean it');
-    });
-  }
-  document.querySelectorAll('.chipx').forEach(wireChipx);
-  function wireChipx(btn) {
-    if (btn.dataset.wired) return;
-    btn.dataset.wired = '1';
-    btn.addEventListener('click', function () {
-      var cat = btn.getAttribute('data-cat');
-      var n = btn.getAttribute('data-count');
-      askConfirm(
-        'Remove tile?',
-        'Remove the \u201c' + cat + '\u201d tile and delete all ' + n +
-          ' ' + (n === '1' ? 'story' : 'stories') + ' in it? ' +
-          'This cannot be undone.',
-        '{{ url_for('clear_category') }}', cat, 'Yes, remove');
-    });
   }
 })();
 </script>

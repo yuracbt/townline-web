@@ -346,7 +346,13 @@ def inject_admin():
                           (uid,)).fetchone()
         if trow and trow["theme"] in ("light", "dark"):
             theme = trow["theme"]
-    return {"is_admin": is_admin, "theme": theme}
+    try:
+        css_version = int(os.path.getmtime(
+            os.path.join(BASE_DIR, "static", "style.css")))
+    except OSError:
+        css_version = 0
+    return {"is_admin": is_admin, "theme": theme,
+            "css_version": css_version}
 
 
 def get_settings(user_id):

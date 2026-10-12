@@ -1,15 +1,34 @@
 {% extends "base.html" %}
 {% block title %}Log in — TownLine{% endblock %}
 {% block content %}
-<div class="card narrow">
-  <h1>Log in</h1>
-  {% if error %}<p class="error">{{ error }}</p>{% endif %}
-  <form method="post">
-    <label>Username <input name="username" autocomplete="username" required></label>
-    <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
-    <button type="submit">Log in</button>
-  </form>
-  <p class="muted"><a href="{{ url_for('forgot_password') }}">Forgot your password?</a></p>
-  <p class="muted">New here? <a href="{{ url_for('register') }}">Create an account</a></p>
+<div class="landing">
+  <div class="pitch">
+    <h1 class="pitch-title">Your town&rsquo;s news, in one inbox.</h1>
+    <p class="pitch-sub">TownLine scans your local news sources around the clock and serves them categorized, counted, and ready to read &mdash; no ads, no algorithms, no noise.</p>
+    <ul class="pitch-list">
+      <li><span class="pli">📰</span> Every local story in one place &mdash; your outlets, regional papers, and the wider web</li>
+      <li><span class="pli">🗂️</span> Sorted for you &mdash; News, Sport, Business, Community, automatically</li>
+      <li><span class="pli">✉️</span> An inbox, not a firehose &mdash; unread counts and mark-all-read, zero doomscrolling</li>
+      <li><span class="pli">★</span> Save the good ones to read later</li>
+      <li><span class="pli">📍</span> Tell it your town &mdash; local feeds suggested instantly</li>
+      <li><span class="pli">🔒</span> No ads. No tracking. No engagement algorithms.</li>
+    </ul>
+    <div class="how">
+      <div class="step"><span class="stepn">1</span> Create your account</div>
+      <div class="step"><span class="stepn">2</span> Pick your town</div>
+      <div class="step"><span class="stepn">3</span> Open your inbox &mdash; the news is already there</div>
+    </div>
+  </div>
+  <div class="card narrow logincard">
+    <h1>Log in</h1>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <form method="post">
+      <label>Username <input name="username" autocomplete="username" required></label>
+      <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
+      <button type="submit">Log in</button>
+    </form>
+    <p class="muted"><a href="{{ url_for('forgot_password') }}">Forgot your password?</a></p>
+    <p class="muted">New here? <a href="{{ url_for('register') }}">Create an account</a></p>
+  </div>
 </div>
 {% endblock %}

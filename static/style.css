@@ -149,3 +149,31 @@ button:hover, .btn:hover { filter: brightness(0.93); }
 .admintable th, .admintable td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
 .admintable tr.blocked td { opacity: 0.65; }
 .linklike.danger { color: var(--danger); }
+
+/* ---- Login landing: pitch + login card ---- */
+.landing { display: flex; gap: 32px; align-items: flex-start; margin-top: 26px; }
+.pitch { flex: 1.25; min-width: 0; }
+.pitch-title { font-size: 2rem; line-height: 1.2; margin: 6px 0 12px; }
+.pitch-sub { font-size: 1.05rem; color: var(--muted); margin: 0 0 20px; max-width: 34em; }
+.pitch-list { list-style: none; padding: 0; margin: 0 0 22px; }
+.pitch-list li { display: flex; gap: 10px; padding: 7px 0; font-size: 0.98rem; }
+.pitch-list .pli { flex: none; width: 26px; text-align: center; }
+.how { display: flex; gap: 10px; flex-wrap: wrap; }
+.step {
+  flex: 1; min-width: 150px; background: var(--card);
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 14px; font-size: 0.9rem;
+}
+.stepn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-size: 0.8rem; font-weight: 700; margin-right: 8px;
+}
+body.dark .stepn { color: #1a1a1a; }
+.card.narrow.logincard { flex: 1; min-width: 300px; max-width: 380px; margin: 0; }
+@media (max-width: 760px) {
+  .landing { flex-direction: column; }
+  .logincard { max-width: none; width: 100%; }
+  .pitch-title { font-size: 1.6rem; }
+}

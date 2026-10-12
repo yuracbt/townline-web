@@ -25,6 +25,12 @@
             <button type="submit" class="linklike">{% if u['is_blocked'] %}Unblock{% else %}Block{% endif %}</button>
           </form>
           |
+          <form method="post" action="{{ url_for('admin_reset_password') }}" style="display:inline"
+                onsubmit="return confirm('Reset the password for {{ u['username'] }}? They will get a temporary password by email.')">
+            <input type="hidden" name="user_id" value="{{ u['id'] }}">
+            <button type="submit" class="linklike">Reset password</button>
+          </form>
+          |
           <form method="post" action="{{ url_for('admin_delete') }}" style="display:inline"
                 onsubmit="return confirm('Delete {{ u['username'] }} and ALL their data? This cannot be undone.')">
             <input type="hidden" name="user_id" value="{{ u['id'] }}">

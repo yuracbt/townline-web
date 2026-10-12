@@ -230,22 +230,18 @@ def email_configured():
     return bool(SMTP_HOST and SMTP_FROM)
 
 
-def send_reset_email(to_addr, reset_link):
-    """Send the password-reset link. Returns True on success."""
+def send_email(to_addr, subject, body):
+    """Send a plain-text email via the configured SMTP relay.
+    Returns True on success, False when unconfigured or on failure."""
     if not email_configured():
         return False
     import smtplib
     from email.message import EmailMessage
     msg = EmailMessage()
-    msg["Subject"] = "TownLine password reset"
+    msg["Subject"] = subject
     msg["From"] = SMTP_FROM
     msg["To"] = to_addr
-    msg.set_content(
-        "Someone requested a password reset for your TownLine account.\n\n"
-        "Reset your password here (valid for 1 hour):\n"
-        f"{reset_link}\n\n"
-        "If this was not you, just ignore this message."
-    )
+    msg.set_content(body)
     try:
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
             s.starttls()
@@ -254,8 +250,47 @@ def send_reset_email(to_addr, reset_link):
             s.send_message(msg)
         return True
     except Exception as e:  # noqa: BLE001 - delivery failure is non-fatal
-        app.logger.warning("reset email failed: %s", e)
+        app.logger.warning("email to %s failed: %s", to_addr, e)
         return False
+
+
+def send_reset_email(to_addr, reset_link):
+    """Send the password-reset link. Returns True on success."""
+    return send_email(
+        to_addr,
+        "TownLine password reset",
+        "Someone requested a password reset for your TownLine account.\n\n"
+        "Reset your password here (valid for 1 hour):\n"
+        f"{reset_link}\n\n"
+        "If this was not you, just ignore this message.",
+    )
+
+
+def send_temp_password_email(to_addr, username, temp_password, login_link,
+                             reset_link):
+    """Notify a user that the admin reset their password. True on success."""
+    return send_email(
+        to_addr,
+        "TownLine: your password was reset",
+        f"Hi {username},\n\n"
+        "The TownLine administrator has reset your password.\n\n"
+        f"Your temporary password is: {temp_password}\n\n"
+        f"Log in here: {login_link}\n\n"
+        "Or set your own password right away with this one-time link "
+        f"(valid for 1 hour):\n{reset_link}\n\n"
+        "If this was not expected, contact the administrator.",
+    )
+
+
+def generate_temp_password():
+    """One-time temporary password that passes the strength policy."""
+    import string
+    # 12 chars, guaranteed to include upper, digit and special.
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*-_=+"
+    while True:
+        pw = "".join(secrets.choice(alphabet) for _ in range(12))
+        if not password_problems(pw):
+            return pw
 
 
 def login_required(view):
@@ -1069,6 +1104,50 @@ def admin_block():
         db.commit()
         flash(("Blocked " if new_state else "Unblocked ") +
               target["username"] + ".")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/reset_password", methods=["POST"])
+@login_required
+@admin_required
+def admin_reset_password():
+    """Admin sets a one-time temporary password for a user and notifies
+    them by email (when delivery is configured). The temp password is
+    also shown to the admin, since stored passwords are one-way hashes
+    and can never be displayed."""
+    target_id = int(request.form.get("user_id", 0) or 0)
+    db = get_db()
+    target = db.execute("SELECT * FROM users WHERE id = ?",
+                        (target_id,)).fetchone()
+    if not target:
+        flash("User not found.")
+        return redirect(url_for("admin_panel"))
+    temp = generate_temp_password()
+    db.execute("UPDATE users SET pw_hash = ? WHERE id = ?",
+               (generate_password_hash(temp, method="pbkdf2:sha256"),
+                target_id))
+    # One-time "set your own password" link, same as the forgot flow.
+    token = secrets.token_urlsafe(32)
+    db.execute(
+        "INSERT INTO password_resets (user_id, token, expires_at, "
+        "created_at) VALUES (?,?,?,?)",
+        (target_id, token, int(time.time()) + RESET_TOKEN_TTL,
+         int(time.time())),
+    )
+    db.commit()
+    emailed = False
+    if target["email"]:
+        emailed = send_temp_password_email(
+            target["email"], target["username"], temp,
+            url_for("login", _external=True),
+            url_for("password_reset", token=token, _external=True),
+        )
+    flash(f"Password for {target['username']} reset. "
+          f"Temporary password: {temp}"
+          + (f" — emailed to {target['email']}."
+             if emailed else
+             " — email NOT sent (no email on file or delivery "
+             "not configured)."))
     return redirect(url_for("admin_panel"))
 
 

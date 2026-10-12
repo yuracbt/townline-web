@@ -50,7 +50,7 @@
 
 <ul class="stories">
 {% for s in stories %}
-  <li class="story{% if s['is_read'] %} read{% endif %}" data-id="{{ s['id'] }}" data-url="{{ s['url'] }}">
+  <li class="story{% if s['is_read'] %} read{% else %} unread{% endif %}" data-id="{{ s['id'] }}" data-url="{{ s['url'] }}">
     <div class="srow">
       <a class="stitle" href="{{ s['url'] }}" target="_blank" rel="noopener">{{ s['title'] }}</a>
       <span class="cat">{{ s['category'] }}</span>

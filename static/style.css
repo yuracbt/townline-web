@@ -19,19 +19,19 @@ body {
 }
 .topbar {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 20px; background: var(--card);
+  padding: 12px 22px; background: var(--card);
   border-bottom: 1px solid var(--line);
 }
 .brand { font-weight: 700; font-size: 1.2rem; color: var(--accent); text-decoration: none; }
-.topbar nav a { margin-left: 16px; color: var(--ink); text-decoration: none; }
+.topbar nav a { margin-left: 16px; color: var(--ink); text-decoration: none; font-size: 0.95rem; }
 .topbar nav a:hover { color: var(--accent); }
-.wrap { max-width: 1100px; margin: 0 auto; padding: 20px; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 22px; }
 .card {
   background: var(--card); border: 1px solid var(--line);
   border-radius: 10px; padding: 18px; margin: 16px 0;
 }
 .card.narrow { max-width: 420px; margin: 40px auto; }
-h1 { font-size: 1.5rem; margin: 0 0 8px; }
+h1 { font-size: 1.5rem; margin: 0 0 4px; }
 h2 { font-size: 1.15rem; margin: 22px 0 8px; }
 label { display: block; margin: 10px 0; font-weight: 600; }
 label.check { font-weight: 400; }
@@ -41,9 +41,9 @@ input, select {
   background: #fff;
 }
 button, .btn {
-  display: inline-block; padding: 9px 16px; margin-top: 10px;
+  display: inline-block; padding: 8px 14px; margin-top: 10px;
   background: var(--accent); color: #fff; border: none; border-radius: 6px;
-  font-size: 1rem; cursor: pointer; text-decoration: none;
+  font-size: 0.92rem; cursor: pointer; text-decoration: none;
 }
 button:hover, .btn:hover { filter: brightness(0.93); }
 .btn.ghost { background: var(--accent-soft); color: var(--accent); }
@@ -59,7 +59,9 @@ button:hover, .btn:hover { filter: brightness(0.93); }
 .error { color: var(--danger); }
 .empty { margin: 30px 0; }
 .dashhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.dashhead .muted { font-size: 0.92rem; margin: 0; }
 .dashactions { display: flex; gap: 8px; flex-wrap: wrap; }
+.dashactions .btn { margin-top: 0; }
 .muted a { color: var(--accent); text-decoration: none; }
 .topbar nav a.on { color: var(--accent); font-weight: 600; }
 .flashes { list-style: none; padding: 0; margin: 0 0 12px; }
@@ -67,7 +69,7 @@ button:hover, .btn:hover { filter: brightness(0.93); }
   background: var(--accent-soft); border: 1px solid var(--accent);
   color: var(--ink); border-radius: 8px; padding: 10px 14px;
 }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; align-items: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; align-items: center; }
 .chip {
   padding: 5px 13px; border-radius: 20px; background: var(--card);
   border: 1px solid var(--line); color: var(--ink);
@@ -99,7 +101,7 @@ button:hover, .btn:hover { filter: brightness(0.93); }
 .switch input:checked + .slider:before { transform: translateX(16px); }
 .pager {
   display: flex; align-items: center; justify-content: center;
-  gap: 14px; margin: 18px 0 8px;
+  gap: 14px; margin: 18px 0 6px;
 }
 .stories {
   list-style: none; padding: 0; margin: 0;
@@ -177,3 +179,30 @@ body.dark .stepn { color: #1a1a1a; }
   .logincard { max-width: none; width: 100%; }
   .pitch-title { font-size: 1.6rem; }
 }
+
+/* ---- Dark theme (design concept 6): activated by body.dark ---- */
+body.dark {
+  color-scheme: dark;
+  --bg: #16181a;
+  --card: #1e2124;
+  --ink: #e8e6e3;
+  --muted: #8f8a81;
+  --accent: #e08a3c;
+  --accent-soft: #3a2c1c;
+  --line: #2c3136;
+  --line-soft: #2a2f34;
+  --unread-bg: #232220;
+  --danger: #d96a5a;
+}
+body.dark input, body.dark select {
+  background: #24282c; color: var(--ink); border-color: var(--line);
+}
+body.dark .btn { color: #1a1a1a; font-weight: 600; }
+body.dark .btn.ghost { color: var(--accent); }
+body.dark .btn.danger { color: #1a1a1a; }
+body.dark .topbar nav a { color: #b9b4ac; }
+body.dark .topbar nav a.on, body.dark .topbar nav a:hover { color: var(--accent); }
+body.dark h1, body.dark .stitle { color: #f2f0ec; }
+body.dark .chip { background: #24282c; border-color: #343a40; color: #d8d4cc; }
+body.dark .chip .count { color: #1a1a1a; }
+body.dark .chip.on .count { background: #1a1a1a; color: var(--accent); }

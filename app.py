@@ -25,6 +25,7 @@ import requests
 from flask import (Flask, flash, g, jsonify, redirect, render_template,
                    request, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from categorizer import categorize, think_source
 
@@ -37,6 +38,11 @@ PLACES_PATH = os.path.join(BASE_DIR, "places_directory.json")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-key-change-me")
+# In production the app sits behind nginx (TLS termination); trust the
+# proxy's X-Forwarded-* headers so url_for(_external=True) builds https://
+# links (password-reset emails) correctly.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1,
+                        x_prefix=1)
 
 UA = "TownLineWeb/1.0"
 FEED_TIMEOUT = 10  # seconds; be polite to other people's servers

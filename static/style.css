@@ -67,7 +67,7 @@ button:hover, .btn:hover { filter: brightness(0.93); }
   background: var(--accent-soft); border: 1px solid var(--accent);
   color: var(--ink); border-radius: 8px; padding: 10px 14px;
 }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; align-items: center; }
 .chip {
   padding: 5px 13px; border-radius: 20px; background: var(--card);
   border: 1px solid var(--line); color: var(--ink);

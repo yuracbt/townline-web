@@ -1099,6 +1099,18 @@ def admin_panel():
         d = dict(u)
         d["created_str"] = datetime.fromtimestamp(
             u["created_at"], tz=timezone.utc).strftime("%Y-%m-%d")
+        # Towns for the expandable detail row. Today each user has a single
+        # town in settings; kept as a list so the future up-to-7-towns
+        # support only needs to fill this list.
+        s = get_settings(u["id"])
+        towns = []
+        name = (s.get("town_name") or "").strip()
+        if name:
+            label = ", ".join(p for p in
+                              (name, s.get("state") or "",
+                               s.get("country_code") or "") if p)
+            towns.append({"label": label})
+        d["towns"] = towns
         user_rows.append(d)
     token_rows = []
     for t in tokens:

@@ -17,10 +17,13 @@
 <meta name="twitter:description" content="{{ self.meta_description() }}">
 <meta name="twitter:image" content="{{ site_url }}/static/og-image.png">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=css_version) }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32.png', v=css_version) }}">
+<link rel="icon" type="image/png" sizes="64x64" href="{{ url_for('static', filename='favicon.png', v=css_version) }}">
+<link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='apple-touch-icon.png', v=css_version) }}">
 </head>
 <body class="{% if theme == 'dark' %}dark {% endif %}{% block bodyclass %}{% endblock %}">
 <header class="topbar">
-  <a class="brand" href="{{ url_for('dashboard') }}">TownsLine</a>
+  <a class="brand" href="{{ url_for('dashboard') }}"><img src="{{ url_for('static', filename='favicon-32.png', v=css_version) }}" alt="TownsLine logo" width="28" height="28">TownsLine</a>
   {% if user %}
   <nav>
     <a href="{{ url_for('dashboard') }}"{% if request.endpoint == 'dashboard' %} class="on"{% endif %}>News</a>

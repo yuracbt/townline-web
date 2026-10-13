@@ -206,3 +206,62 @@ body.dark h1, body.dark .stitle { color: #f2f0ec; }
 body.dark .chip { background: #24282c; border-color: #343a40; color: #d8d4cc; }
 body.dark .chip .count { color: #1a1a1a; }
 body.dark .chip.on .count { background: #1a1a1a; color: var(--accent); }
+
+/* ---------- Login landing page — Concept 1 "The Bold Pitch" ---------- */
+body.login-page .wrap { max-width: none; margin: 0; padding: 0; }
+body.login-page .topbar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+  background: transparent; border-bottom: none; padding: 16px 28px;
+}
+body.login-page .brand { color: #f5b95e; }
+.lp-hero {
+  background: linear-gradient(135deg, #1d130a 0%, #4a2c10 55%, #8a4d16 100%);
+  color: #fff; min-height: 100vh; display: flex; align-items: center;
+}
+.lp-inner {
+  display: flex; gap: 56px; align-items: center;
+  max-width: 1180px; margin: 0 auto; padding: 96px 40px 64px; width: 100%;
+}
+.lp-pitch { flex: 1.4; }
+.lp-kicker {
+  display: inline-block; font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+  color: #f5c98a; border: 1px solid rgba(245,201,138,.5);
+  padding: 7px 14px; border-radius: 999px; margin-bottom: 22px;
+}
+.lp-pitch h1 { font-size: 52px; line-height: 1.08; letter-spacing: -1px; margin: 0 0 20px; color: #fff; }
+.lp-pitch h1 em { font-style: normal; color: #f5b95e; }
+.lp-sub { font-size: 18px; line-height: 1.6; color: #f3e2c8; max-width: 540px; margin: 0 0 30px; }
+.lp-cta { display: flex; gap: 14px; margin-bottom: 36px; flex-wrap: wrap; }
+.lp-btn {
+  display: inline-block; padding: 13px 26px; border-radius: 10px;
+  font-weight: 700; font-size: 15px; text-decoration: none; cursor: pointer; border: none;
+}
+.lp-btn-solid { background: #f5b95e; color: #3a2208; }
+.lp-btn-solid:hover { background: #ffc86e; }
+.lp-btn-ghost { border: 1px solid rgba(255,255,255,.5); color: #fff; background: transparent; }
+.lp-btn-ghost:hover { border-color: #fff; }
+.lp-btn-block { width: 100%; text-align: center; }
+.lp-proof { display: flex; gap: 30px; }
+.lp-proof b { display: block; font-size: 24px; color: #fff; }
+.lp-proof span { font-size: 13px; color: #f3e2c8; }
+.lp-card {
+  flex: 1; background: #fffdf8; color: #2b2620; border-radius: 16px;
+  padding: 34px 32px; max-width: 380px; width: 100%;
+  box-shadow: 0 24px 70px rgba(0,0,0,.35);
+}
+.lp-card h2 { font-size: 22px; margin: 0 0 18px; color: #2b2620; }
+.lp-card .lp-btn-solid { background: #c96a1e; color: #fff; }
+.lp-card .lp-btn-solid:hover { background: #b25d18; }
+.lp-field { display: block; margin: 0 0 14px; font-size: 13px; font-weight: 600; color: #5c554a; }
+.lp-field input {
+  display: block; width: 100%; margin-top: 6px; padding: 12px 14px;
+  border: 1px solid #ddd5c4; border-radius: 9px; font-size: 15px; background: #fff; color: #2b2620;
+}
+.lp-fine { margin-top: 14px; font-size: 13px; color: #8a8072; text-align: center; }
+.lp-fine a { color: #c96a1e; }
+.lp-card .error { margin: 0 0 14px; }
+@media (max-width: 900px) {
+  .lp-inner { flex-direction: column; padding: 88px 24px 48px; gap: 40px; }
+  .lp-pitch h1 { font-size: 36px; }
+  .lp-card { max-width: 480px; }
+}

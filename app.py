@@ -34,6 +34,7 @@ from categorizer import categorize, think_source
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "townline.db")
 DIRECTORY_PATH = os.path.join(BASE_DIR, "feeds_directory.json")
+TOWNS_PATH = os.path.join(BASE_DIR, "towns.json")
 PLACES_PATH = os.path.join(BASE_DIR, "places_directory.json")
 
 app = Flask(__name__)
@@ -76,8 +77,18 @@ def load_places_directory():
         return []
 
 
+def load_towns():
+    try:
+        with open(TOWNS_PATH, encoding="utf-8") as f:
+            towns = json.load(f).get("towns", [])
+        return {t["slug"]: t for t in towns if t.get("slug")}
+    except Exception:
+        return {}
+
+
 FEED_DIRECTORY = load_directory()
 PLACES_DIRECTORY = load_places_directory()
+TOWNS = load_towns()
 
 # ---------------------------------------------------------------- db
 
@@ -1823,10 +1834,21 @@ def sitemap_xml():
     urls = "".join(
         f"<url><loc>{SITE_URL}{p}</loc><changefreq>weekly</changefreq>"
         f"<priority>0.8</priority></url>" for p in pages)
+    for slug in sorted(TOWNS):
+        urls += (f"<url><loc>{SITE_URL}/t/{slug}</loc>"
+                 f"<changefreq>weekly</changefreq><priority>0.7</priority></url>")
     xml = ('<?xml version="1.0" encoding="UTF-8"?>'
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
            f'{urls}</urlset>')
     return Response(xml, mimetype="application/xml")
+
+
+@app.route("/t/<slug>")
+def town_page(slug):
+    town = TOWNS.get(slug)
+    if not town:
+        return render_template("404.html"), 404
+    return render_template("town.html", town=town)
 
 
 def start_background():

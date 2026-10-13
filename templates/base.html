@@ -42,5 +42,10 @@
 {% endwith %}
 {% block content %}{% endblock %}
 </main>
+<footer class="foot">
+  <span>© 2026 TownsLine</span>
+  <span class="fdot">·</span><a href="{{ url_for('about_page') }}">Our story</a>
+  {% if donate_url %}<span class="fdot">·</span><a class="fbtn" href="{{ donate_url }}" target="_blank" rel="noopener">♥ Donate</a>{% endif %}
+</footer>
 </body>
 </html>

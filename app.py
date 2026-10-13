@@ -1814,11 +1814,13 @@ def locate():
 @app.context_processor
 def inject_helpers():
     return {"rel_time": rel_time, "site_url": SITE_URL,
-            "canonical_url": SITE_URL + request.path}
+            "canonical_url": SITE_URL + request.path,
+            "donate_url": DONATE_URL}
 
 
 # ---------------------------------------------------------------- SEO
 SITE_URL = os.environ.get("SITE_URL", "https://townsline.com").rstrip("/")
+DONATE_URL = os.environ.get("DONATE_URL", "").strip()
 
 
 @app.route("/robots.txt")

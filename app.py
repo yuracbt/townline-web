@@ -1830,7 +1830,7 @@ def robots_txt():
 
 @app.route("/sitemap.xml")
 def sitemap_xml():
-    pages = ["/login", "/register", "/forgot"]
+    pages = ["/login", "/register", "/forgot", "/about"]
     urls = "".join(
         f"<url><loc>{SITE_URL}{p}</loc><changefreq>weekly</changefreq>"
         f"<priority>0.8</priority></url>" for p in pages)
@@ -1849,6 +1849,11 @@ def town_page(slug):
     if not town:
         return render_template("404.html"), 404
     return render_template("town.html", town=town)
+
+
+@app.route("/about")
+def about_page():
+    return render_template("about.html")
 
 
 def start_background():

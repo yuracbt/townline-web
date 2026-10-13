@@ -1,4 +1,4 @@
-"""Categorization rules ported 1:1 from the TownLine Android app
+"""Categorization rules ported 1:1 from the TownsLine Android app
 (Categorizer.java). The feed's own beat wins first, then the feed's URL,
 then what the story is actually about; the feed's home town is the fallback.
 """

@@ -1,4 +1,4 @@
-"""TownLine Web — a multi-user local-news hub portal.
+"""TownsLine Web — a multi-user local-news hub portal.
 
 Run:  pip install -r requirements.txt && python app.py
 Then open http://localhost:5000
@@ -45,7 +45,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev-key-change-me")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1,
                         x_prefix=1)
 
-UA = "TownLineWeb/1.0"
+UA = "TownsLineWeb/1.0"
 FEED_TIMEOUT = 10  # seconds; be polite to other people's servers
 
 INTERVALS = [
@@ -234,7 +234,7 @@ def password_problems(pw):
 
 # Outgoing mail for password resets. Configure on the server, e.g.
 #   SMTP_HOST=smtp.example.com SMTP_PORT=587 SMTP_USER=... SMTP_PASS=... \
-#   SMTP_FROM="TownLine <noreply@example.com>"
+#   SMTP_FROM="TownsLine <noreply@example.com>"
 # Until it is configured, reset links stay in the admin panel so the
 # administrator can forward them manually.
 SMTP_HOST = os.environ.get("SMTP_HOST", "")
@@ -276,8 +276,8 @@ def send_reset_email(to_addr, reset_link):
     """Send the password-reset link. Returns True on success."""
     return send_email(
         to_addr,
-        "TownLine password reset",
-        "Someone requested a password reset for your TownLine account.\n\n"
+        "TownsLine password reset",
+        "Someone requested a password reset for your TownsLine account.\n\n"
         "Reset your password here (valid for 1 hour):\n"
         f"{reset_link}\n\n"
         "If this was not you, just ignore this message.",
@@ -289,9 +289,9 @@ def send_temp_password_email(to_addr, username, temp_password, login_link,
     """Notify a user that the admin reset their password. True on success."""
     return send_email(
         to_addr,
-        "TownLine: your password was reset",
+        "TownsLine: your password was reset",
         f"Hi {username},\n\n"
-        "The TownLine administrator has reset your password.\n\n"
+        "The TownsLine administrator has reset your password.\n\n"
         f"Your temporary password is: {temp_password}\n\n"
         f"Log in here: {login_link}\n\n"
         "Or set your own password right away with this one-time link "
@@ -1871,5 +1871,5 @@ start_background()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    print(f"TownLine Web on http://localhost:{port}")
+    print(f"TownsLine Web on http://localhost:{port}")
     app.run(host="0.0.0.0", port=port, debug=False)

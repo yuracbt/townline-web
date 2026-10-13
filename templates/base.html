@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}TownLine{% endblock %}</title>
+<title>{% block title %}TownsLine{% endblock %}</title>
 <meta name="description" content="{% block meta_description %}TownsLine scans your local news sources around the clock and serves them categorized in one clean inbox — no ads, no algorithms, no noise.{% endblock %}">
 <link rel="canonical" href="{{ canonical_url }}">
 <meta property="og:type" content="website">
@@ -20,7 +20,7 @@
 </head>
 <body class="{% if theme == 'dark' %}dark {% endif %}{% block bodyclass %}{% endblock %}">
 <header class="topbar">
-  <a class="brand" href="{{ url_for('dashboard') }}">TownLine</a>
+  <a class="brand" href="{{ url_for('dashboard') }}">TownsLine</a>
   {% if user %}
   <nav>
     <a href="{{ url_for('dashboard') }}"{% if request.endpoint == 'dashboard' %} class="on"{% endif %}>News</a>

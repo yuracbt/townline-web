@@ -12,7 +12,7 @@
     <tbody>
     {% for u in users %}
       <tr{% if u['is_blocked'] %} class="blocked"{% endif %}>
-        <td><strong>{{ u['username'] }}</strong>{% if u['username'] == admin_username %} <span class="muted small">(you)</span>{% endif %}</td>
+        <td class="expandcell" data-uid="{{ u['id'] }}" title="Show towns"><span class="expander">▸</span> <strong>{{ u['username'] }}</strong>{% if u['username'] == admin_username %} <span class="muted small">(you)</span>{% endif %}</td>
         <td>{{ u['email'] or '—' }}</td>
         <td>{{ u['created_str'] }}</td>
         <td>{{ u['stories'] }}</td>
@@ -39,10 +39,28 @@
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
       </tr>
+      <tr class="userdetail" id="detail-{{ u['id'] }}" hidden>
+        <td colspan="7">
+          <span class="muted small">Towns:</span>
+          {% if u['towns'] %}
+            {% for t in u['towns'] %}<span class="townchip">{{ t['label'] }}</span>{% endfor %}
+          {% else %}<span class="muted small">no town set</span>{% endif %}
+        </td>
+      </tr>
     {% endfor %}
     </tbody>
   </table>
 </div>
+<script>
+document.querySelectorAll('.expandcell').forEach(function(cell){
+  cell.addEventListener('click', function(){
+    var row = document.getElementById('detail-' + cell.dataset.uid);
+    var open = row.hidden;
+    row.hidden = !open;
+    cell.querySelector('.expander').textContent = open ? '▾' : '▸';
+  });
+});
+</script>
 
 <div class="card">
   <h2>Password reset requests</h2>

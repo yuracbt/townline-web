@@ -1,4 +1,4 @@
-# TownLine Web — Command Cheatsheet
+# TownsLine Web — Command Cheatsheet
 
 Run everything from the `townline-web` folder in Terminal.
 

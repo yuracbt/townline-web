@@ -1,6 +1,6 @@
-# TownLine Web
+# TownsLine Web
 
-A multi-user news-hub web portal — the web sibling of the TownLine Android app.
+A multi-user news-hub web portal — the web sibling of the TownsLine Android app.
 Each user gets their own local-news line: own feeds, own stories, own read/saved
 state, own town and scan settings.
 

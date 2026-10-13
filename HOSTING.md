@@ -1,6 +1,6 @@
-# Hosting TownLine Web for free
+# Hosting TownsLine Web for free
 
-How to put the TownLine Web news hub on the internet for **$0**, so different
+How to put the TownsLine Web news hub on the internet for **$0**, so different
 users from different locations can register and test it with their own towns,
 feeds, and settings.
 
@@ -33,7 +33,7 @@ tester's browser → https://random-words.trycloudflare.com → Cloudflare
 
 Verify: `cloudflared --version`.
 
-### Step 2 — Start TownLine Web
+### Step 2 — Start TownsLine Web
 
 ```bash
 cd ~/workspace/townline-web
@@ -99,7 +99,7 @@ month, no credit card required. You get a fixed address like
 - **While asleep, the background scanner doesn't run.** New stories are picked
   up on the next visit/wake.
 - **The database is wiped on every restart/redeploy.** Render's free
-  filesystem is ephemeral, and TownLine Web stores everything in a local
+  filesystem is ephemeral, and TownsLine Web stores everything in a local
   SQLite file. For a test round this is acceptable (testers just re-register),
   but don't treat it as permanent storage. A permanent database needs a paid
   disk or an external free database (e.g. Supabase/Neon Postgres + code
@@ -112,7 +112,7 @@ month, no credit card required. You get a fixed address like
 cd ~/workspace/townline-web
 git init
 git add -A
-git commit -m "TownLine Web"
+git commit -m "TownsLine Web"
 # create an empty repo on github.com, then:
 git remote add origin https://github.com/YOURNAME/townline-web.git
 git push -u origin main
@@ -190,7 +190,7 @@ more than this app needs), plus 200 GB storage and 10 TB/month bandwidth.
 - "Out of host capacity" errors are common on the free ARM shape — just retry,
   or try again in a few hours.
 - Once the VM exists, one script does the rest: it installs Python, Caddy
-  (automatic HTTPS), and TownLine Web as a service. See
+  (automatic HTTPS), and TownsLine Web as a service. See
   [`deploy/oracle-setup.sh`](deploy/oracle-setup.sh):
   `./oracle-setup.sh your-domain.com` on a fresh Ubuntu 24.04 VM, then point
   your domain's A record at the VM and open the ingress ports 80/443 in the

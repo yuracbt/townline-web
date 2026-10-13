@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}TownsLine — Never miss what matters in your town{% endblock %}
 {% block bodyclass %}login-page{% endblock %}
+{% block meta_description %}Never miss what matters in your town again. TownsLine watches every local news source around the clock and delivers one clean inbox. Free to start — no ads, no algorithms, no doomscrolling.{% endblock %}
 {% block content %}
 <div class="lp-hero">
   <div class="lp-inner">
@@ -12,6 +13,7 @@
         <a class="lp-btn lp-btn-solid" href="{{ url_for('register') }}">Create free account</a>
         <a class="lp-btn lp-btn-ghost" href="#lp-login">Log in</a>
       </div>
+      <a class="lp-watch" href="#" id="lp-watch"><span class="lp-play">▶</span> Watch how it works <span class="lp-watch-time">(39 sec)</span></a>
       <div class="lp-proof">
         <div><b>24/7</b><span>automatic scanning</span></div>
         <div><b>0</b><span>ads, trackers, algorithms</span></div>
@@ -35,4 +37,27 @@
     </div>
   </div>
 </div>
+<div class="lp-modal" id="lp-modal" hidden>
+  <div class="lp-modal-box">
+    <button class="lp-modal-close" id="lp-close" aria-label="Close">✕</button>
+    <video id="lp-video" controls preload="none" src="{{ url_for('static', filename='townline-tutorial.mp4', v=css_version) }}"></video>
+  </div>
+</div>
+<script>
+(function () {
+  var modal = document.getElementById('lp-modal');
+  var video = document.getElementById('lp-video');
+  document.getElementById('lp-watch').addEventListener('click', function (e) {
+    e.preventDefault();
+    modal.hidden = false;
+    video.play();
+  });
+  function closeModal() { modal.hidden = true; video.pause(); }
+  document.getElementById('lp-close').addEventListener('click', closeModal);
+  modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !modal.hidden) closeModal();
+  });
+})();
+</script>
 {% endblock %}

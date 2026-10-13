@@ -1,1 +1,3819 @@
-{"towns":[{"country":"Canada","country_code":"ca","feeds":[{"name":"DiscoverAirdrie","url":"https://www.discoverairdrie.com/rss/news"}],"lat":51.29,"lon":-114.01,"name":"Airdrie","region":"Alberta","slug":"airdrie"},{"country":"Ukraine","country_code":"ua","feeds":[{"name":"Zaxid.net","url":"https://zaxid.net/rss"}],"lat":49.84,"lon":24.03,"name":"Lviv","region":"Lviv Oblast","slug":"lviv"},{"country":"Ireland","country_code":"ie","feeds":[{"name":"DublinLive","url":"https://www.dublinlive.ie/news/?service=rss"}],"lat":53.35,"lon":-6.26,"name":"Dublin","region":"Leinster","slug":"dublin"}]}
+{
+ "towns": [
+  {
+   "slug": "aarhus",
+   "name": "Aarhus",
+   "region": "Central Denmark",
+   "country": "Denmark",
+   "country_code": "dk",
+   "lat": 56.16,
+   "lon": 10.2,
+   "feeds": [
+    {
+     "name": "Artikler",
+     "url": "https://www.tv2ostjylland.dk/rss"
+    }
+   ]
+  },
+  {
+   "slug": "abbotsford",
+   "name": "Abbotsford",
+   "region": "British Columbia",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 49.05,
+   "lon": -122.33,
+   "feeds": [
+    {
+     "name": "Abbotsford News",
+     "url": "https://www.abbynews.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "aberdeen",
+   "name": "Aberdeen",
+   "region": "Scotland",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 57.15,
+   "lon": -2.09,
+   "feeds": [
+    {
+     "name": "Press and Journal",
+     "url": "https://www.pressandjournal.co.uk/feed"
+    },
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/scotland/north_east_orkney_and_shetland/rss.xml"
+    },
+    {
+     "name": "BBC Scotland",
+     "url": "https://feeds.bbci.co.uk/news/scotland/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "adelaide",
+   "name": "Adelaide",
+   "region": "South Australia",
+   "country": "Australia",
+   "country_code": "au",
+   "lat": -34.93,
+   "lon": 138.6,
+   "feeds": [
+    {
+     "name": "Glam Adelaide",
+     "url": "https://glamadelaide.com.au/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "airdrie",
+   "name": "Airdrie",
+   "region": "Alberta",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 51.29,
+   "lon": -114.01,
+   "feeds": [
+    {
+     "name": "DiscoverAirdrie — Local News",
+     "url": "https://www.discoverairdrie.com/rss/local-news"
+    },
+    {
+     "name": "DiscoverAirdrie — Community",
+     "url": "https://www.discoverairdrie.com/rss/community"
+    },
+    {
+     "name": "CBC Calgary",
+     "url": "https://rss.cbc.ca/lineup/canada-calgary.xml"
+    },
+    {
+     "name": "Calgary Herald",
+     "url": "https://calgaryherald.com/feed"
+    },
+    {
+     "name": "Calgary Sun",
+     "url": "https://calgarysun.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "albuquerque",
+   "name": "Albuquerque",
+   "region": "New Mexico",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 35.08,
+   "lon": -106.65,
+   "feeds": [
+    {
+     "name": "KRQE NEWS 13 -  Breaking News, Albuquerque News, New Mexico ",
+     "url": "https://www.krqe.com/feed"
+    },
+    {
+     "name": "KOB 4",
+     "url": "https://www.kob.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "amsterdam",
+   "name": "Amsterdam",
+   "region": "North Holland",
+   "country": "Netherlands",
+   "country_code": "nl",
+   "lat": 52.37,
+   "lon": 4.9,
+   "feeds": [
+    {
+     "name": "Parool: homepage",
+     "url": "https://www.parool.nl/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "antwerp",
+   "name": "Antwerp",
+   "region": "Flanders",
+   "country": "Belgium",
+   "country_code": "be",
+   "lat": 51.22,
+   "lon": 4.4,
+   "feeds": [
+    {
+     "name": "GVA",
+     "url": "https://www.gva.be/rss"
+    }
+   ]
+  },
+  {
+   "slug": "athens",
+   "name": "Athens",
+   "region": "Attica",
+   "country": "Greece",
+   "country_code": "gr",
+   "lat": 37.98,
+   "lon": 23.73,
+   "feeds": [
+    {
+     "name": "ertnews.gr",
+     "url": "https://www.ertnews.gr/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "atlanta",
+   "name": "Atlanta",
+   "region": "Georgia",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 33.75,
+   "lon": -84.39,
+   "feeds": [
+    {
+     "name": "Atlanta Magazine",
+     "url": "https://www.atlantamagazine.com/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "auckland",
+   "name": "Auckland",
+   "region": "Auckland",
+   "country": "New Zealand",
+   "country_code": "nz",
+   "lat": -36.85,
+   "lon": 174.76,
+   "feeds": [
+    {
+     "name": "Stuff - /",
+     "url": "https://www.stuff.co.nz/feed"
+    }
+   ]
+  },
+  {
+   "slug": "austin",
+   "name": "Austin",
+   "region": "Texas",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 30.27,
+   "lon": -97.74,
+   "feeds": [
+    {
+     "name": "The Austin Chronicle",
+     "url": "https://www.austinchronicle.com/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "baltimore",
+   "name": "Baltimore",
+   "region": "Maryland",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 39.29,
+   "lon": -76.61,
+   "feeds": [
+    {
+     "name": "Baltimore Sun",
+     "url": "https://www.baltimoresun.com/feed/atom"
+    }
+   ]
+  },
+  {
+   "slug": "banff",
+   "name": "Banff",
+   "region": "Alberta",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 51.18,
+   "lon": -115.57,
+   "feeds": [
+    {
+     "name": "CBC Calgary",
+     "url": "https://rss.cbc.ca/lineup/canada-calgary.xml"
+    },
+    {
+     "name": "Calgary Herald",
+     "url": "https://calgaryherald.com/feed"
+    },
+    {
+     "name": "Calgary Sun",
+     "url": "https://calgarysun.com/feed"
+    },
+    {
+     "name": "Edmonton Journal",
+     "url": "https://edmontonjournal.com/feed"
+    },
+    {
+     "name": "Lethbridge Herald",
+     "url": "https://lethbridgeherald.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "barcelona",
+   "name": "Barcelona",
+   "region": "Catalonia",
+   "country": "Spain",
+   "country_code": "es",
+   "lat": 41.39,
+   "lon": 2.17,
+   "feeds": [
+    {
+     "name": "Portada",
+     "url": "https://www.lavanguardia.com/rss/home.xml"
+    },
+    {
+     "name": "betevé",
+     "url": "https://beteve.cat/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "barrie",
+   "name": "Barrie",
+   "region": "Ontario",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 44.39,
+   "lon": -79.69,
+   "feeds": [
+    {
+     "name": "CBC Toronto",
+     "url": "https://rss.cbc.ca/lineup/canada-toronto.xml"
+    }
+   ]
+  },
+  {
+   "slug": "belfast",
+   "name": "Belfast",
+   "region": "Northern Ireland",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 54.6,
+   "lon": -5.93,
+   "feeds": [
+    {
+     "name": "Belfast Telegraph",
+     "url": "https://www.belfasttelegraph.co.uk/rss"
+    },
+    {
+     "name": "BelfastLive - Home",
+     "url": "https://www.belfastlive.co.uk/rss.xml"
+    },
+    {
+     "name": "BBC News",
+     "url": "https://www.bbc.com/news/northern_ireland/rss.xml"
+    },
+    {
+     "name": "BBC Northern Ireland",
+     "url": "https://feeds.bbci.co.uk/news/northern_ireland/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "bergen",
+   "name": "Bergen",
+   "region": "Vestland",
+   "country": "Norway",
+   "country_code": "no",
+   "lat": 60.39,
+   "lon": 5.32,
+   "feeds": [
+    {
+     "name": "Toppsaker – NRK Vestland",
+     "url": "https://www.nrk.no/vestland/toppsaker.rss"
+    }
+   ]
+  },
+  {
+   "slug": "berlin",
+   "name": "Berlin",
+   "region": "Berlin",
+   "country": "Germany",
+   "country_code": "de",
+   "lat": 52.52,
+   "lon": 13.4,
+   "feeds": [
+    {
+     "name": "Berliner Zeitung",
+     "url": "https://www.berliner-zeitung.de/feed.xml"
+    },
+    {
+     "name": "rbb24 - Nachrichten aus Berlin und Brandenburg | rbb24",
+     "url": "https://www.rbb24.de/index.xml/feed=rss.xml"
+    },
+    {
+     "name": "Berliner Morgenpost",
+     "url": "https://www.morgenpost.de/rss"
+    }
+   ]
+  },
+  {
+   "slug": "birmingham",
+   "name": "Birmingham",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 52.48,
+   "lon": -1.89,
+   "feeds": [
+    {
+     "name": "Birmingham Live - Home",
+     "url": "https://www.birminghammail.co.uk/rss.xml"
+    },
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "boise",
+   "name": "Boise",
+   "region": "Idaho",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 43.62,
+   "lon": -116.2,
+   "feeds": [
+    {
+     "name": "KTVB RSS Feed: news",
+     "url": "https://www.ktvb.com/feeds/syndication/rss/news"
+    },
+    {
+     "name": "Homepage",
+     "url": "https://www.kivitv.com/index.rss"
+    }
+   ]
+  },
+  {
+   "slug": "bordeaux",
+   "name": "Bordeaux",
+   "region": "Nouvelle-Aquitaine",
+   "country": "France",
+   "country_code": "fr",
+   "lat": 44.84,
+   "lon": -0.58,
+   "feeds": [
+    {
+     "name": "Sud Ouest : actualités du jour et info locale en continu",
+     "url": "https://www.sudouest.fr/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "boston",
+   "name": "Boston",
+   "region": "Massachusetts",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 42.36,
+   "lon": -71.06,
+   "feeds": [
+    {
+     "name": "Boston.com",
+     "url": "https://www.boston.com/feed/"
+    },
+    {
+     "name": "WBUR News",
+     "url": "https://rss.wbur.org/wbur/rss"
+    }
+   ]
+  },
+  {
+   "slug": "brampton",
+   "name": "Brampton",
+   "region": "Ontario",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 43.73,
+   "lon": -79.76,
+   "feeds": [
+    {
+     "name": "CBC Toronto",
+     "url": "https://rss.cbc.ca/lineup/canada-toronto.xml"
+    }
+   ]
+  },
+  {
+   "slug": "bremen",
+   "name": "Bremen",
+   "region": "Bremen",
+   "country": "Germany",
+   "country_code": "de",
+   "lat": 53.08,
+   "lon": 8.8,
+   "feeds": [
+    {
+     "name": "Neuste Inhalte von butenunbinnen.de",
+     "url": "https://www.butenunbinnen.de/feed/rss/neuste-inhalte100.xml"
+    }
+   ]
+  },
+  {
+   "slug": "brisbane",
+   "name": "Brisbane",
+   "region": "Queensland",
+   "country": "Australia",
+   "country_code": "au",
+   "lat": -27.47,
+   "lon": 153.03,
+   "feeds": [
+    {
+     "name": "Brisbane Times - Latest News",
+     "url": "https://www.brisbanetimes.com.au/rss/feed.xml"
+    }
+   ]
+  },
+  {
+   "slug": "bristol",
+   "name": "Bristol",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 51.45,
+   "lon": -2.59,
+   "feeds": [
+    {
+     "name": "Bristol Post - frontpage",
+     "url": "https://www.bristolpost.co.uk/rss.xml"
+    },
+    {
+     "name": "Bristol24/7",
+     "url": "https://www.bristol247.com/feed"
+    },
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/england/bristol/rss.xml"
+    },
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "brno",
+   "name": "Brno",
+   "region": "South Moravian",
+   "country": "Czechia",
+   "country_code": "cz",
+   "lat": 49.2,
+   "lon": 16.61,
+   "feeds": [
+    {
+     "name": "Brněnský deník",
+     "url": "https://brnensky.denik.cz/rss/vse.xml"
+    },
+    {
+     "name": "iDNES.cz – s námi víte víc",
+     "url": "https://servis.idnes.cz/rss.aspx"
+    }
+   ]
+  },
+  {
+   "slug": "brussels",
+   "name": "Brussels",
+   "region": "Brussels",
+   "country": "Belgium",
+   "country_code": "be",
+   "lat": 50.85,
+   "lon": 4.35,
+   "feeds": [
+    {
+     "name": "Bruzz - Actua",
+     "url": "https://www.bruzz.be/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "bucharest",
+   "name": "Bucharest",
+   "region": "Bucharest",
+   "country": "Romania",
+   "country_code": "ro",
+   "lat": 44.43,
+   "lon": 26.1,
+   "feeds": [
+    {
+     "name": "Digi24",
+     "url": "https://www.digi24.ro/rss"
+    },
+    {
+     "name": "HotNews.ro",
+     "url": "https://hotnews.ro/feed"
+    },
+    {
+     "name": "G4Media.ro",
+     "url": "https://www.g4media.ro/feed"
+    }
+   ]
+  },
+  {
+   "slug": "budapest",
+   "name": "Budapest",
+   "region": "Central Hungary",
+   "country": "Hungary",
+   "country_code": "hu",
+   "lat": 47.5,
+   "lon": 19.04,
+   "feeds": [
+    {
+     "name": "Telex RSS: Legfrissebb",
+     "url": "https://telex.hu/rss"
+    },
+    {
+     "name": "24.hu",
+     "url": "https://24.hu/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "burnaby",
+   "name": "Burnaby",
+   "region": "British Columbia",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 49.25,
+   "lon": -122.98,
+   "feeds": [
+    {
+     "name": "CityNews Vancouver",
+     "url": "https://vancouver.citynews.ca/feed"
+    }
+   ]
+  },
+  {
+   "slug": "calgary",
+   "name": "Calgary",
+   "region": "Alberta",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 51.05,
+   "lon": -114.07,
+   "feeds": [
+    {
+     "name": "Calgary Herald",
+     "url": "https://calgaryherald.com/feed/atom"
+    },
+    {
+     "name": "Calgary Sun",
+     "url": "https://calgarysun.com/feed/atom"
+    },
+    {
+     "name": "CBC Calgary",
+     "url": "https://rss.cbc.ca/lineup/canada-calgary.xml"
+    },
+    {
+     "name": "Calgary Herald",
+     "url": "https://calgaryherald.com/feed"
+    },
+    {
+     "name": "Calgary Sun",
+     "url": "https://calgarysun.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "cambridge",
+   "name": "Cambridge",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 52.21,
+   "lon": 0.12,
+   "feeds": [
+    {
+     "name": "Cambridgeshire Live - Home",
+     "url": "https://www.cambridge-news.co.uk/rss.xml"
+    },
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/england/cambridgeshire/rss.xml"
+    },
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "canberra",
+   "name": "Canberra",
+   "region": "Australian Capital Territory",
+   "country": "Australia",
+   "country_code": "au",
+   "lat": -35.28,
+   "lon": 149.13,
+   "feeds": [
+    {
+     "name": "The Canberra Times - News",
+     "url": "https://www.canberratimes.com.au/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "canmore",
+   "name": "Canmore",
+   "region": "Alberta",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 51.18,
+   "lon": -115.35,
+   "feeds": [
+    {
+     "name": "CBC Calgary",
+     "url": "https://rss.cbc.ca/lineup/canada-calgary.xml"
+    },
+    {
+     "name": "Calgary Herald",
+     "url": "https://calgaryherald.com/feed"
+    },
+    {
+     "name": "Calgary Sun",
+     "url": "https://calgarysun.com/feed"
+    },
+    {
+     "name": "Edmonton Journal",
+     "url": "https://edmontonjournal.com/feed"
+    },
+    {
+     "name": "Lethbridge Herald",
+     "url": "https://lethbridgeherald.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "cardiff",
+   "name": "Cardiff",
+   "region": "Wales",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 51.48,
+   "lon": -3.18,
+   "feeds": [
+    {
+     "name": "WalesOnline - Home",
+     "url": "https://www.walesonline.co.uk/rss.xml"
+    },
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/wales/south_east_wales/rss.xml"
+    },
+    {
+     "name": "BBC Wales",
+     "url": "https://feeds.bbci.co.uk/news/wales/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "charlotte",
+   "name": "Charlotte",
+   "region": "North Carolina",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 35.23,
+   "lon": -80.84,
+   "feeds": [
+    {
+     "name": "WCNC RSS Feed: news",
+     "url": "https://www.wcnc.com/feeds/syndication/rss/news"
+    }
+   ]
+  },
+  {
+   "slug": "charlottetown",
+   "name": "Charlottetown",
+   "region": "Prince Edward Island",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 46.24,
+   "lon": -63.13,
+   "feeds": [
+    {
+     "name": "www.saltwire.com RSS Feed",
+     "url": "https://www.saltwire.com/category/prince-edward-island/feed.xml"
+    },
+    {
+     "name": "CBC P.E.I.",
+     "url": "https://rss.cbc.ca/lineup/canada-pei.xml"
+    }
+   ]
+  },
+  {
+   "slug": "chicago",
+   "name": "Chicago",
+   "region": "Illinois",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 41.88,
+   "lon": -87.63,
+   "feeds": [
+    {
+     "name": "Chicago Tribune",
+     "url": "https://www.chicagotribune.com/feed/atom"
+    },
+    {
+     "name": "Chicago Sun-Times - All",
+     "url": "https://chicago.suntimes.com/rss/index.xml"
+    },
+    {
+     "name": "Block Club Chicago",
+     "url": "https://blockclubchicago.org/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "christchurch",
+   "name": "Christchurch",
+   "region": "Canterbury",
+   "country": "New Zealand",
+   "country_code": "nz",
+   "lat": -43.53,
+   "lon": 172.64,
+   "feeds": [
+    {
+     "name": "The Press - /",
+     "url": "https://www.thepress.co.nz/rss"
+    },
+    {
+     "name": "Stuff - /",
+     "url": "https://www.stuff.co.nz/feed"
+    }
+   ]
+  },
+  {
+   "slug": "cincinnati",
+   "name": "Cincinnati",
+   "region": "Ohio",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 39.1,
+   "lon": -84.51,
+   "feeds": [
+    {
+     "name": "Homepage",
+     "url": "https://www.wcpo.com/index.rss"
+    }
+   ]
+  },
+  {
+   "slug": "cleveland",
+   "name": "Cleveland",
+   "region": "Ohio",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 41.5,
+   "lon": -81.69,
+   "feeds": [
+    {
+     "name": "News 5 Cleveland WEWS",
+     "url": "https://www.news5cleveland.com/index.rss"
+    },
+    {
+     "name": "Fox 8 Cleveland WJW",
+     "url": "https://fox8.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "cochrane",
+   "name": "Cochrane",
+   "region": "Alberta",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 51.19,
+   "lon": -114.47,
+   "feeds": [
+    {
+     "name": "CochraneNow — Local News",
+     "url": "https://www.cochranenow.com/rss/local-news"
+    },
+    {
+     "name": "CBC Calgary",
+     "url": "https://rss.cbc.ca/lineup/canada-calgary.xml"
+    },
+    {
+     "name": "Calgary Herald",
+     "url": "https://calgaryherald.com/feed"
+    },
+    {
+     "name": "Calgary Sun",
+     "url": "https://calgarysun.com/feed"
+    },
+    {
+     "name": "Edmonton Journal",
+     "url": "https://edmontonjournal.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "columbus",
+   "name": "Columbus",
+   "region": "Ohio",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 39.96,
+   "lon": -83.0,
+   "feeds": [
+    {
+     "name": "WBNS RSS Feed: news",
+     "url": "https://www.10tv.com/feeds/syndication/rss/news"
+    }
+   ]
+  },
+  {
+   "slug": "copenhagen",
+   "name": "Copenhagen",
+   "region": "Capital Region",
+   "country": "Denmark",
+   "country_code": "dk",
+   "lat": 55.68,
+   "lon": 12.57,
+   "feeds": [
+    {
+     "name": "Artikler",
+     "url": "https://www.tv2lorry.dk/rss"
+    }
+   ]
+  },
+  {
+   "slug": "cork",
+   "name": "Cork",
+   "region": "Munster",
+   "country": "Ireland",
+   "country_code": "ie",
+   "lat": 51.9,
+   "lon": -8.47,
+   "feeds": [
+    {
+     "name": "IrishExaminer.com",
+     "url": "https://www.irishexaminer.com/feed/35-top_news.xml"
+    },
+    {
+     "name": "echolive.ie",
+     "url": "https://www.echolive.ie/feed/395-EE_Top_news.xml"
+    }
+   ]
+  },
+  {
+   "slug": "dallas",
+   "name": "Dallas",
+   "region": "Texas",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 32.78,
+   "lon": -96.8,
+   "feeds": [
+    {
+     "name": "Dallas Observer",
+     "url": "https://www.dallasobserver.com/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "denver",
+   "name": "Denver",
+   "region": "Colorado",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 39.74,
+   "lon": -104.99,
+   "feeds": [
+    {
+     "name": "The Denver Post",
+     "url": "https://www.denverpost.com/feed/atom"
+    },
+    {
+     "name": "Denverite",
+     "url": "https://denverite.com/feed"
+    },
+    {
+     "name": "Colorado Public Radio",
+     "url": "https://www.cpr.org/feed"
+    }
+   ]
+  },
+  {
+   "slug": "dnipro",
+   "name": "Dnipro",
+   "region": "Dnipropetrovsk Oblast",
+   "country": "Ukraine",
+   "country_code": "ua",
+   "lat": 48.46,
+   "lon": 35.04,
+   "feeds": [
+    {
+     "name": "Українська правда",
+     "url": "https://www.pravda.com.ua/rss"
+    }
+   ]
+  },
+  {
+   "slug": "dresden",
+   "name": "Dresden",
+   "region": "Saxony",
+   "country": "Germany",
+   "country_code": "de",
+   "lat": 51.05,
+   "lon": 13.74,
+   "feeds": [
+    {
+     "name": "Sachsen | Nachrichten, News, Videos, Fotos und Liveticker",
+     "url": "https://www.mdr.de/nachrichten/sachsen/index~atom.xml"
+    }
+   ]
+  },
+  {
+   "slug": "dublin",
+   "name": "Dublin",
+   "region": "Leinster",
+   "country": "Ireland",
+   "country_code": "ie",
+   "lat": 53.35,
+   "lon": -6.26,
+   "feeds": [
+    {
+     "name": "DublinLive - Home",
+     "url": "https://www.dublinlive.ie/rss.xml"
+    },
+    {
+     "name": "TheJournal.ie",
+     "url": "https://www.thejournal.ie/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "dundalk",
+   "name": "Dundalk",
+   "region": "Leinster",
+   "country": "Ireland",
+   "country_code": "ie",
+   "lat": 54.0,
+   "lon": -6.4,
+   "feeds": [
+    {
+     "name": "Louth Live",
+     "url": "https://www.dundalkdemocrat.ie/rss"
+    }
+   ]
+  },
+  {
+   "slug": "dundee",
+   "name": "Dundee",
+   "region": "Scotland",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 56.46,
+   "lon": -2.97,
+   "feeds": [
+    {
+     "name": "The Courier",
+     "url": "https://www.thecourier.co.uk/feed"
+    },
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/scotland/tayside_and_central/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "dusseldorf",
+   "name": "Düsseldorf",
+   "region": "North Rhine-Westphalia",
+   "country": "Germany",
+   "country_code": "de",
+   "lat": 51.23,
+   "lon": 6.78,
+   "feeds": [
+    {
+     "name": "Startseite | RP ONLINE",
+     "url": "https://rp-online.de/feed.rss"
+    },
+    {
+     "name": "Startseite\n | Westdeutsche Zeitung",
+     "url": "https://www.wz.de/feed.rss"
+    }
+   ]
+  },
+  {
+   "slug": "edinburgh",
+   "name": "Edinburgh",
+   "region": "Scotland",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 55.95,
+   "lon": -3.19,
+   "feeds": [
+    {
+     "name": "Edinburgh News",
+     "url": "https://www.edinburghnews.scotsman.com/rss"
+    },
+    {
+     "name": "Edinburgh Live - frontpage",
+     "url": "https://www.edinburghlive.co.uk/rss.xml"
+    },
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/scotland/edinburgh_east_and_fife/rss.xml"
+    },
+    {
+     "name": "BBC Scotland",
+     "url": "https://feeds.bbci.co.uk/news/scotland/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "edmonton",
+   "name": "Edmonton",
+   "region": "Alberta",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 53.55,
+   "lon": -113.49,
+   "feeds": [
+    {
+     "name": "Edmonton Journal",
+     "url": "https://edmontonjournal.com/feed/atom"
+    },
+    {
+     "name": "Edmonton Sun",
+     "url": "https://edmontonsun.com/feed/atom"
+    },
+    {
+     "name": "CBC Edmonton",
+     "url": "https://rss.cbc.ca/lineup/canada-edmonton.xml"
+    },
+    {
+     "name": "Calgary Herald",
+     "url": "https://calgaryherald.com/feed"
+    },
+    {
+     "name": "Calgary Sun",
+     "url": "https://calgarysun.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "eindhoven",
+   "name": "Eindhoven",
+   "region": "North Brabant",
+   "country": "Netherlands",
+   "country_code": "nl",
+   "lat": 51.44,
+   "lon": 5.48,
+   "feeds": [
+    {
+     "name": "Omroep Brabant: Laatste nieuws",
+     "url": "https://www.omroepbrabant.nl/rss"
+    }
+   ]
+  },
+  {
+   "slug": "fort-mcmurray",
+   "name": "Fort McMurray",
+   "region": "Alberta",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 56.73,
+   "lon": -111.38,
+   "feeds": [
+    {
+     "name": "Fort McMurray Today",
+     "url": "https://www.fortmcmurraytoday.com/feed/atom"
+    },
+    {
+     "name": "CBC Edmonton",
+     "url": "https://rss.cbc.ca/lineup/canada-edmonton.xml"
+    },
+    {
+     "name": "Calgary Herald",
+     "url": "https://calgaryherald.com/feed"
+    },
+    {
+     "name": "Calgary Sun",
+     "url": "https://calgarysun.com/feed"
+    },
+    {
+     "name": "Edmonton Journal",
+     "url": "https://edmontonjournal.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "frankfurt",
+   "name": "Frankfurt",
+   "region": "Hesse",
+   "country": "Germany",
+   "country_code": "de",
+   "lat": 50.11,
+   "lon": 8.68,
+   "feeds": [
+    {
+     "name": "hessenschau.de",
+     "url": "https://www.hessenschau.de/index.rss"
+    }
+   ]
+  },
+  {
+   "slug": "fredericton",
+   "name": "Fredericton",
+   "region": "New Brunswick",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 45.96,
+   "lon": -66.64,
+   "feeds": [
+    {
+     "name": "Telegraph-Journal",
+     "url": "https://tj.news/feed/atom"
+    },
+    {
+     "name": "CBC New Brunswick",
+     "url": "https://rss.cbc.ca/lineup/canada-newbrunswick.xml"
+    }
+   ]
+  },
+  {
+   "slug": "galway",
+   "name": "Galway",
+   "region": "Connacht",
+   "country": "Ireland",
+   "country_code": "ie",
+   "lat": 53.27,
+   "lon": -9.05,
+   "feeds": [
+    {
+     "name": "Connacht Tribune",
+     "url": "https://www.connachttribune.ie/rss"
+    }
+   ]
+  },
+  {
+   "slug": "gatineau",
+   "name": "Gatineau",
+   "region": "Quebec",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 45.48,
+   "lon": -75.65,
+   "feeds": [
+    {
+     "name": "CBC Ottawa",
+     "url": "https://rss.cbc.ca/lineup/canada-ottawa.xml"
+    }
+   ]
+  },
+  {
+   "slug": "gdansk",
+   "name": "Gdansk",
+   "region": "Pomeranian",
+   "country": "Poland",
+   "country_code": "pl",
+   "lat": 54.35,
+   "lon": 18.65,
+   "feeds": [
+    {
+     "name": "Radio Gdańsk",
+     "url": "https://radiogdansk.pl/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "geelong",
+   "name": "Geelong",
+   "region": "Victoria",
+   "country": "Australia",
+   "country_code": "au",
+   "lat": -38.15,
+   "lon": 144.36,
+   "feeds": [
+    {
+     "name": "Geelong Independent",
+     "url": "https://geelongindy.com.au/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "geneva",
+   "name": "Geneva",
+   "region": "Geneva",
+   "country": "Switzerland",
+   "country_code": "ch",
+   "lat": 46.2,
+   "lon": 6.14,
+   "feeds": [
+    {
+     "name": "RSS",
+     "url": "https://www.lemanbleu.ch/documents.rdf?idz=31&cids=10732"
+    }
+   ]
+  },
+  {
+   "slug": "glasgow",
+   "name": "Glasgow",
+   "region": "Scotland",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 55.86,
+   "lon": -4.25,
+   "feeds": [
+    {
+     "name": "GlasgowLive - Home",
+     "url": "https://www.glasgowlive.co.uk/rss.xml"
+    },
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/scotland/glasgow_and_west/rss.xml"
+    },
+    {
+     "name": "BBC Scotland",
+     "url": "https://feeds.bbci.co.uk/news/scotland/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "gothenburg",
+   "name": "Gothenburg",
+   "region": "Västra Götaland",
+   "country": "Sweden",
+   "country_code": "se",
+   "lat": 57.71,
+   "lon": 11.97,
+   "feeds": [
+    {
+     "name": "Väst | SVT Nyheter",
+     "url": "https://www.svt.se/nyheter/lokalt/vast/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "grande-prairie",
+   "name": "Grande Prairie",
+   "region": "Alberta",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 55.17,
+   "lon": -118.8,
+   "feeds": [
+    {
+     "name": "Grande Prairie Daily Herald-Tribune",
+     "url": "https://www.dailyheraldtribune.com/feed"
+    },
+    {
+     "name": "Grande Prairie Daily Herald Tribune",
+     "url": "https://www.dailyheraldtribune.com/feed/atom"
+    },
+    {
+     "name": "CBC Edmonton",
+     "url": "https://rss.cbc.ca/lineup/canada-edmonton.xml"
+    },
+    {
+     "name": "Calgary Herald",
+     "url": "https://calgaryherald.com/feed"
+    },
+    {
+     "name": "Calgary Sun",
+     "url": "https://calgarysun.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "graz",
+   "name": "Graz",
+   "region": "Styria",
+   "country": "Austria",
+   "country_code": "at",
+   "lat": 47.07,
+   "lon": 15.44,
+   "feeds": [
+    {
+     "name": "Kleine Zeitung - Nachrichten",
+     "url": "https://www.kleinezeitung.at/rss/news"
+    },
+    {
+     "name": "steiermark.ORF.at",
+     "url": "https://rss.orf.at/steiermark.xml"
+    }
+   ]
+  },
+  {
+   "slug": "groningen",
+   "name": "Groningen",
+   "region": "Groningen",
+   "country": "Netherlands",
+   "country_code": "nl",
+   "lat": 53.22,
+   "lon": 6.57,
+   "feeds": [
+    {
+     "name": "RTV Noord",
+     "url": "https://www.rtvnoord.nl/rss"
+    },
+    {
+     "name": "Dagblad van het Noorden",
+     "url": "https://www.dvhn.nl/rss"
+    }
+   ]
+  },
+  {
+   "slug": "guelph",
+   "name": "Guelph",
+   "region": "Ontario",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 43.54,
+   "lon": -80.25,
+   "feeds": [
+    {
+     "name": "CBC Toronto",
+     "url": "https://rss.cbc.ca/lineup/canada-toronto.xml"
+    }
+   ]
+  },
+  {
+   "slug": "halifax",
+   "name": "Halifax",
+   "region": "Nova Scotia",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 44.65,
+   "lon": -63.57,
+   "feeds": [
+    {
+     "name": "www.saltwire.com RSS Feed",
+     "url": "https://www.saltwire.com/category/nova-scotia/halifax/feed.xml"
+    },
+    {
+     "name": "CityNews Halifax",
+     "url": "https://halifax.citynews.ca/feed"
+    },
+    {
+     "name": "CBC Nova Scotia",
+     "url": "https://rss.cbc.ca/lineup/canada-novascotia.xml"
+    }
+   ]
+  },
+  {
+   "slug": "hamburg",
+   "name": "Hamburg",
+   "region": "Hamburg",
+   "country": "Germany",
+   "country_code": "de",
+   "lat": 53.55,
+   "lon": 9.99,
+   "feeds": [
+    {
+     "name": "Hamburger Abendblatt",
+     "url": "https://www.abendblatt.de/rss"
+    },
+    {
+     "name": "Nachrichten aus Hamburg",
+     "url": "https://www.ndr.de/nachrichten/hamburg/index~atom.xml"
+    },
+    {
+     "name": "Home",
+     "url": "https://www.mopo.de/?lab_viewport=rss"
+    }
+   ]
+  },
+  {
+   "slug": "hamilton",
+   "name": "Hamilton",
+   "region": "Ontario",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 43.26,
+   "lon": -79.87,
+   "feeds": [
+    {
+     "name": "CBC Toronto",
+     "url": "https://rss.cbc.ca/lineup/canada-toronto.xml"
+    }
+   ]
+  },
+  {
+   "slug": "hanover",
+   "name": "Hanover",
+   "region": "Lower Saxony",
+   "country": "Germany",
+   "country_code": "de",
+   "lat": 52.37,
+   "lon": 9.73,
+   "feeds": [
+    {
+     "name": "Nachrichten aus Hannover und dem Weser-Leinegebiet",
+     "url": "https://www.ndr.de/nachrichten/niedersachsen/hannover_weser-leinegebiet/index~atom.xml"
+    }
+   ]
+  },
+  {
+   "slug": "hartford",
+   "name": "Hartford",
+   "region": "Connecticut",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 41.77,
+   "lon": -72.67,
+   "feeds": [
+    {
+     "name": "Hartford Courant",
+     "url": "https://www.courant.com/feed/atom"
+    }
+   ]
+  },
+  {
+   "slug": "helsinki",
+   "name": "Helsinki",
+   "region": "Uusimaa",
+   "country": "Finland",
+   "country_code": "fi",
+   "lat": 60.17,
+   "lon": 24.94,
+   "feeds": [
+    {
+     "name": "Yle Uutiset",
+     "url": "https://feeds.yle.fi/uutiset/v1/majorHeadlines/YLE_UUTISET.rss"
+    },
+    {
+     "name": "Yle News in English",
+     "url": "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_NEWS"
+    }
+   ]
+  },
+  {
+   "slug": "high-river",
+   "name": "High River",
+   "region": "Alberta",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 50.58,
+   "lon": -113.87,
+   "feeds": [
+    {
+     "name": "High River Times",
+     "url": "https://www.highrivertimes.com/feed"
+    },
+    {
+     "name": "High River Times",
+     "url": "https://www.highrivertimes.com/feed/atom"
+    },
+    {
+     "name": "CBC Calgary",
+     "url": "https://rss.cbc.ca/lineup/canada-calgary.xml"
+    },
+    {
+     "name": "Calgary Herald",
+     "url": "https://calgaryherald.com/feed"
+    },
+    {
+     "name": "Calgary Sun",
+     "url": "https://calgarysun.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "honolulu",
+   "name": "Honolulu",
+   "region": "Hawaii",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 21.31,
+   "lon": -157.86,
+   "feeds": [
+    {
+     "name": "Honolulu Star-Advertiser",
+     "url": "https://www.staradvertiser.com/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "houston",
+   "name": "Houston",
+   "region": "Texas",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 29.76,
+   "lon": -95.37,
+   "feeds": [
+    {
+     "name": "Houston Public Media",
+     "url": "https://www.houstonpublicmedia.org/rsslatest.xml"
+    }
+   ]
+  },
+  {
+   "slug": "indianapolis",
+   "name": "Indianapolis",
+   "region": "Indiana",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 39.77,
+   "lon": -86.16,
+   "feeds": [
+    {
+     "name": "WTHR RSS Feed: news",
+     "url": "https://www.wthr.com/feeds/syndication/rss/news"
+    },
+    {
+     "name": "WISH-TV",
+     "url": "https://www.wishtv.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "jacksonville",
+   "name": "Jacksonville",
+   "region": "Florida",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 30.33,
+   "lon": -81.66,
+   "feeds": [
+    {
+     "name": "WJCT Public Media",
+     "url": "https://www.wjct.org/feed"
+    }
+   ]
+  },
+  {
+   "slug": "kamloops",
+   "name": "Kamloops",
+   "region": "British Columbia",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 50.67,
+   "lon": -120.34,
+   "feeds": [
+    {
+     "name": "d2211",
+     "url": "https://www.cfjctoday.com/feed"
+    },
+    {
+     "name": "d1495",
+     "url": "https://www.radionl.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "kansas-city",
+   "name": "Kansas City",
+   "region": "Missouri",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 39.1,
+   "lon": -94.58,
+   "feeds": [
+    {
+     "name": "Homepage",
+     "url": "https://www.kshb.com/index.rss"
+    },
+    {
+     "name": "FOX 4 Kansas City WDAF-TV | News, Weather, Sports",
+     "url": "https://fox4kc.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "katowice",
+   "name": "Katowice",
+   "region": "Silesian",
+   "country": "Poland",
+   "country_code": "pl",
+   "lat": 50.26,
+   "lon": 19.03,
+   "feeds": [
+    {
+     "name": "Dziennik Zachodni",
+     "url": "https://dziennikzachodni.pl/rss"
+    },
+    {
+     "name": "Katowice.Wyborcza.pl",
+     "url": "https://katowice.wyborcza.pl/pub/rss/katowice.xml"
+    }
+   ]
+  },
+  {
+   "slug": "kelowna",
+   "name": "Kelowna",
+   "region": "British Columbia",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 49.89,
+   "lon": -119.5,
+   "feeds": [
+    {
+     "name": "Kelowna Capital News",
+     "url": "https://www.kelownacapnews.com/feed"
+    },
+    {
+     "name": "Castanet.net - Most Recent Stories",
+     "url": "https://www.castanet.net/rss/mostrecent.xml"
+    }
+   ]
+  },
+  {
+   "slug": "kharkiv",
+   "name": "Kharkiv",
+   "region": "Kharkiv Oblast",
+   "country": "Ukraine",
+   "country_code": "ua",
+   "lat": 49.99,
+   "lon": 36.23,
+   "feeds": [
+    {
+     "name": "sq.com.ua",
+     "url": "https://www.sq.com.ua/rss/feed.xml"
+    },
+    {
+     "name": "Українська правда",
+     "url": "https://www.pravda.com.ua/rss"
+    }
+   ]
+  },
+  {
+   "slug": "kingston",
+   "name": "Kingston",
+   "region": "Ontario",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 44.23,
+   "lon": -76.49,
+   "feeds": [
+    {
+     "name": "CBC Ottawa",
+     "url": "https://rss.cbc.ca/lineup/canada-ottawa.xml"
+    }
+   ]
+  },
+  {
+   "slug": "kitchener",
+   "name": "Kitchener",
+   "region": "Ontario",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 43.45,
+   "lon": -80.49,
+   "feeds": [
+    {
+     "name": "CBC Toronto",
+     "url": "https://rss.cbc.ca/lineup/canada-toronto.xml"
+    }
+   ]
+  },
+  {
+   "slug": "krakow",
+   "name": "Krakow",
+   "region": "Lesser Poland",
+   "country": "Poland",
+   "country_code": "pl",
+   "lat": 50.06,
+   "lon": 19.94,
+   "feeds": [
+    {
+     "name": "Krakow.wyborcza.pl",
+     "url": "https://krakow.wyborcza.pl/pub/rss/krakow.xml"
+    },
+    {
+     "name": "LoveKraków.pl - Twoje źródło informacji",
+     "url": "https://lovekrakow.pl/rss.xml"
+    },
+    {
+     "name": "Radio Kraków",
+     "url": "https://www.radiokrakow.pl/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "kyiv",
+   "name": "Kyiv",
+   "region": "Kyiv",
+   "country": "Ukraine",
+   "country_code": "ua",
+   "lat": 50.45,
+   "lon": 30.52,
+   "feeds": [
+    {
+     "name": "The Kyiv Independent",
+     "url": "https://kyivindependent.com/news-archive/rss/"
+    },
+    {
+     "name": "Українська правда",
+     "url": "https://www.pravda.com.ua/rss"
+    },
+    {
+     "name": "Інформаційне Агентство УНІАН",
+     "url": "https://www.unian.ua/feed"
+    }
+   ]
+  },
+  {
+   "slug": "las-vegas",
+   "name": "Las Vegas",
+   "region": "Nevada",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 36.17,
+   "lon": -115.14,
+   "feeds": [
+    {
+     "name": "KLAS",
+     "url": "https://www.8newsnow.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "leeds",
+   "name": "Leeds",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 53.8,
+   "lon": -1.55,
+   "feeds": [
+    {
+     "name": "Yorkshire Evening Post",
+     "url": "https://www.yorkshireeveningpost.co.uk/rss"
+    },
+    {
+     "name": "Leeds Live - frontpage",
+     "url": "https://www.leeds-live.co.uk/rss.xml"
+    },
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "leicester",
+   "name": "Leicester",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 52.64,
+   "lon": -1.13,
+   "feeds": [
+    {
+     "name": "Leicestershire Live - frontpage",
+     "url": "https://www.leicestermercury.co.uk/rss.xml"
+    },
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "leipzig",
+   "name": "Leipzig",
+   "region": "Saxony",
+   "country": "Germany",
+   "country_code": "de",
+   "lat": 51.34,
+   "lon": 12.37,
+   "feeds": [
+    {
+     "name": "Nachrichten aus der Region Leipzig",
+     "url": "https://www.mdr.de/nachrichten/sachsen/leipzig/index~atom.xml"
+    }
+   ]
+  },
+  {
+   "slug": "lethbridge",
+   "name": "Lethbridge",
+   "region": "Alberta",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 49.69,
+   "lon": -112.83,
+   "feeds": [
+    {
+     "name": "The Lethbridge Herald – News and Sports from around Lethbrid",
+     "url": "https://lethbridgeherald.com/feed"
+    },
+    {
+     "name": "CBC Calgary",
+     "url": "https://rss.cbc.ca/lineup/canada-calgary.xml"
+    },
+    {
+     "name": "Calgary Herald",
+     "url": "https://calgaryherald.com/feed"
+    },
+    {
+     "name": "Calgary Sun",
+     "url": "https://calgarysun.com/feed"
+    },
+    {
+     "name": "Edmonton Journal",
+     "url": "https://edmontonjournal.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "lille",
+   "name": "Lille",
+   "region": "Hauts-de-France",
+   "country": "France",
+   "country_code": "fr",
+   "lat": 50.63,
+   "lon": 3.07,
+   "feeds": [
+    {
+     "name": "Hauts-de-France - L'actualité en continu - actu.fr",
+     "url": "https://actu.fr/hauts-de-france/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "limerick",
+   "name": "Limerick",
+   "region": "Munster",
+   "country": "Ireland",
+   "country_code": "ie",
+   "lat": 52.66,
+   "lon": -8.63,
+   "feeds": [
+    {
+     "name": "Limerick Live",
+     "url": "https://www.limerickleader.ie/rss"
+    }
+   ]
+  },
+  {
+   "slug": "lisbon",
+   "name": "Lisbon",
+   "region": "Lisbon",
+   "country": "Portugal",
+   "country_code": "pt",
+   "lat": 38.72,
+   "lon": -9.14,
+   "feeds": [
+    {
+     "name": "Correio da Manhã",
+     "url": "https://www.cmjornal.pt/rss"
+    }
+   ]
+  },
+  {
+   "slug": "liverpool",
+   "name": "Liverpool",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 53.41,
+   "lon": -2.99,
+   "feeds": [
+    {
+     "name": "Liverpool Echo - Home",
+     "url": "https://www.liverpoolecho.co.uk/rss.xml"
+    },
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/england/merseyside/rss.xml"
+    },
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "london",
+   "name": "London",
+   "region": "Ontario",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 42.98,
+   "lon": -81.25,
+   "feeds": [
+    {
+     "name": "CBC London",
+     "url": "https://rss.cbc.ca/lineup/canada-london.xml"
+    }
+   ]
+  },
+  {
+   "slug": "london-uk",
+   "name": "London",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 51.51,
+   "lon": -0.13,
+   "feeds": [
+    {
+     "name": "The Standard",
+     "url": "https://www.standard.co.uk/rss"
+    },
+    {
+     "name": "My London - Home",
+     "url": "https://www.mylondon.news/rss.xml"
+    },
+    {
+     "name": "Londonist",
+     "url": "https://londonist.com/feed"
+    },
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/england/london/rss.xml"
+    },
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "los-angeles",
+   "name": "Los Angeles",
+   "region": "California",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 34.05,
+   "lon": -118.24,
+   "feeds": [
+    {
+     "name": "Local and national news, NPR, things to do, food recommendat",
+     "url": "https://laist.com/index.atom"
+    },
+    {
+     "name": "News from California, across the nation and world  - Los Ang",
+     "url": "https://www.latimes.com/index.rss"
+    },
+    {
+     "name": "Daily News",
+     "url": "https://www.dailynews.com/feed/atom"
+    }
+   ]
+  },
+  {
+   "slug": "lviv",
+   "name": "Lviv",
+   "region": "Lviv Oblast",
+   "country": "Ukraine",
+   "country_code": "ua",
+   "lat": 49.84,
+   "lon": 24.03,
+   "feeds": [
+    {
+     "name": "ZAXID.NET - Всі новини",
+     "url": "https://zaxid.net/rss"
+    },
+    {
+     "name": "Українська правда",
+     "url": "https://www.pravda.com.ua/rss"
+    },
+    {
+     "name": "The Kyiv Independent",
+     "url": "https://kyivindependent.com/news-archive/rss/"
+    }
+   ]
+  },
+  {
+   "slug": "lyon",
+   "name": "Lyon",
+   "region": "Auvergne-Rhône-Alpes",
+   "country": "France",
+   "country_code": "fr",
+   "lat": 45.76,
+   "lon": 4.84,
+   "feeds": [
+    {
+     "name": "Lyon Capitale",
+     "url": "https://www.lyoncapitale.fr/feed"
+    }
+   ]
+  },
+  {
+   "slug": "madrid",
+   "name": "Madrid",
+   "region": "Community of Madrid",
+   "country": "Spain",
+   "country_code": "es",
+   "lat": 40.42,
+   "lon": -3.7,
+   "feeds": [
+    {
+     "name": "RSS de noticias de portada",
+     "url": "https://www.abc.es/rss/2.0/portada/"
+    }
+   ]
+  },
+  {
+   "slug": "malmo",
+   "name": "Malmö",
+   "region": "Skåne",
+   "country": "Sweden",
+   "country_code": "se",
+   "lat": 55.61,
+   "lon": 13.0,
+   "feeds": [
+    {
+     "name": "sydsvenskan.se",
+     "url": "https://www.sydsvenskan.se/feeds/feed.xml"
+    },
+    {
+     "name": "Skåne | SVT Nyheter",
+     "url": "https://www.svt.se/nyheter/lokalt/skane/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "manchester",
+   "name": "Manchester",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 53.48,
+   "lon": -2.24,
+   "feeds": [
+    {
+     "name": "MEN - MEN Frontpage",
+     "url": "https://www.manchestereveningnews.co.uk/rss.xml"
+    },
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/england/manchester/rss.xml"
+    },
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "marseille",
+   "name": "Marseille",
+   "region": "Provence-Alpes-Côte d'Azur",
+   "country": "France",
+   "country_code": "fr",
+   "lat": 43.3,
+   "lon": 5.37,
+   "feeds": [
+    {
+     "name": "Provence-Alpes-Côte d'Azur - L'actualité en continu - actu.f",
+     "url": "https://actu.fr/provence-alpes-cote-d-azur/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "medicine-hat",
+   "name": "Medicine Hat",
+   "region": "Alberta",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 50.04,
+   "lon": -110.68,
+   "feeds": [
+    {
+     "name": "Medicine Hat News",
+     "url": "https://medicinehatnews.com/feed"
+    },
+    {
+     "name": "CBC Calgary",
+     "url": "https://rss.cbc.ca/lineup/canada-calgary.xml"
+    },
+    {
+     "name": "Calgary Herald",
+     "url": "https://calgaryherald.com/feed"
+    },
+    {
+     "name": "Calgary Sun",
+     "url": "https://calgarysun.com/feed"
+    },
+    {
+     "name": "Edmonton Journal",
+     "url": "https://edmontonjournal.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "melbourne",
+   "name": "Melbourne",
+   "region": "Victoria",
+   "country": "Australia",
+   "country_code": "au",
+   "lat": -37.81,
+   "lon": 144.96,
+   "feeds": [
+    {
+     "name": "The Age - Latest News",
+     "url": "https://www.theage.com.au/rss/feed.xml"
+    }
+   ]
+  },
+  {
+   "slug": "miami",
+   "name": "Miami",
+   "region": "Florida",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 25.76,
+   "lon": -80.19,
+   "feeds": [
+    {
+     "name": "Miami New Times",
+     "url": "https://www.miaminewtimes.com/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "milan",
+   "name": "Milan",
+   "region": "Lombardy",
+   "country": "Italy",
+   "country_code": "it",
+   "lat": 45.46,
+   "lon": 9.19,
+   "feeds": [
+    {
+     "name": "MilanoToday",
+     "url": "https://www.milanotoday.it/rss"
+    }
+   ]
+  },
+  {
+   "slug": "milwaukee",
+   "name": "Milwaukee",
+   "region": "Wisconsin",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 43.04,
+   "lon": -87.91,
+   "feeds": [
+    {
+     "name": "Homepage",
+     "url": "https://www.tmj4.com/index.rss"
+    },
+    {
+     "name": "WPR",
+     "url": "https://www.wpr.org/feed"
+    }
+   ]
+  },
+  {
+   "slug": "minneapolis",
+   "name": "Minneapolis",
+   "region": "Minnesota",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 44.98,
+   "lon": -93.27,
+   "feeds": [
+    {
+     "name": "Startribune News",
+     "url": "https://www.startribune.com/rss"
+    },
+    {
+     "name": "MinnPost",
+     "url": "https://www.minnpost.com/feed/"
+    },
+    {
+     "name": "Homepage - MPR News",
+     "url": "https://www.mprnews.org/feed/homepage"
+    }
+   ]
+  },
+  {
+   "slug": "mississauga",
+   "name": "Mississauga",
+   "region": "Ontario",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 43.59,
+   "lon": -79.64,
+   "feeds": [
+    {
+     "name": "www.mississauga.com - RSS Results of type article with keywo",
+     "url": "https://www.mississauga.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc&k%5B%5D=%23topstory"
+    },
+    {
+     "name": "CBC Toronto",
+     "url": "https://rss.cbc.ca/lineup/canada-toronto.xml"
+    }
+   ]
+  },
+  {
+   "slug": "moncton",
+   "name": "Moncton",
+   "region": "New Brunswick",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 46.09,
+   "lon": -64.77,
+   "feeds": [
+    {
+     "name": "Telegraph-Journal",
+     "url": "https://tj.news/feed/atom"
+    },
+    {
+     "name": "CBC New Brunswick",
+     "url": "https://rss.cbc.ca/lineup/canada-newbrunswick.xml"
+    }
+   ]
+  },
+  {
+   "slug": "montreal",
+   "name": "Montreal",
+   "region": "Quebec",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 45.5,
+   "lon": -73.57,
+   "feeds": [
+    {
+     "name": "Le Journal de Montréal",
+     "url": "https://www.journaldemontreal.com/rss.xml"
+    },
+    {
+     "name": "CBC Montreal",
+     "url": "https://rss.cbc.ca/lineup/canada-montreal.xml"
+    }
+   ]
+  },
+  {
+   "slug": "munich",
+   "name": "Munich",
+   "region": "Bavaria",
+   "country": "Germany",
+   "country_code": "de",
+   "lat": 48.14,
+   "lon": 11.58,
+   "feeds": [
+    {
+     "name": "tz - tz",
+     "url": "https://www.tz.de/rssfeed.rdf"
+    }
+   ]
+  },
+  {
+   "slug": "mykolaiv",
+   "name": "Mykolaiv",
+   "region": "Mykolaiv Oblast",
+   "country": "Ukraine",
+   "country_code": "ua",
+   "lat": 46.98,
+   "lon": 31.99,
+   "feeds": [
+    {
+     "name": "МикВісті",
+     "url": "https://nikvesti.com/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "nanaimo",
+   "name": "Nanaimo",
+   "region": "British Columbia",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 49.16,
+   "lon": -123.94,
+   "feeds": [
+    {
+     "name": "Nanaimo News Bulletin",
+     "url": "https://www.nanaimobulletin.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "nantes",
+   "name": "Nantes",
+   "region": "Pays de la Loire",
+   "country": "France",
+   "country_code": "fr",
+   "lat": 47.22,
+   "lon": -1.55,
+   "feeds": [
+    {
+     "name": "Ouest France.fr - L'actualité en direct, en continu et en im",
+     "url": "https://www.ouest-france.fr/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "naples",
+   "name": "Naples",
+   "region": "Campania",
+   "country": "Italy",
+   "country_code": "it",
+   "lat": 40.85,
+   "lon": 14.27,
+   "feeds": [
+    {
+     "name": "NapoliToday",
+     "url": "https://www.napolitoday.it/rss"
+    },
+    {
+     "name": "Il Mattino - Home",
+     "url": "https://www.ilmattino.it/rss/home.xml"
+    }
+   ]
+  },
+  {
+   "slug": "nashville",
+   "name": "Nashville",
+   "region": "Tennessee",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 36.16,
+   "lon": -86.78,
+   "feeds": [
+    {
+     "name": "Nashville Banner",
+     "url": "https://nashvillebanner.com/feed/"
+    },
+    {
+     "name": "WPLN News",
+     "url": "https://wpln.org/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "new-orleans",
+   "name": "New Orleans",
+   "region": "Louisiana",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 29.95,
+   "lon": -90.07,
+   "feeds": [
+    {
+     "name": "WWL RSS Feed: news",
+     "url": "https://www.wwltv.com/feeds/syndication/rss/news"
+    }
+   ]
+  },
+  {
+   "slug": "new-york",
+   "name": "New York",
+   "region": "New York",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 40.71,
+   "lon": -74.01,
+   "feeds": [
+    {
+     "name": "Gothamist",
+     "url": "https://gothamist.com/feed"
+    },
+    {
+     "name": "California Post – Breaking California News, Photos & Videos",
+     "url": "https://nypost.com/ca/feed/"
+    },
+    {
+     "name": "The City Reporter",
+     "url": "https://www.thecityreporter.nyc/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "newcastle",
+   "name": "Newcastle",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 54.98,
+   "lon": -1.61,
+   "feeds": [
+    {
+     "name": "ChronicleLive - Home",
+     "url": "https://www.chroniclelive.co.uk/rss.xml"
+    },
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/england/tyne/rss.xml"
+    },
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "newcastle-nsw",
+   "name": "Newcastle",
+   "region": "New South Wales",
+   "country": "Australia",
+   "country_code": "au",
+   "lat": -32.93,
+   "lon": 151.78,
+   "feeds": [
+    {
+     "name": "Newcastle Herald - News",
+     "url": "https://www.newcastleherald.com.au/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "nice",
+   "name": "Nice",
+   "region": "Provence-Alpes-Côte d'Azur",
+   "country": "France",
+   "country_code": "fr",
+   "lat": 43.7,
+   "lon": 7.27,
+   "feeds": [
+    {
+     "name": "Derniers articles",
+     "url": "https://www.nicematin.com/rss"
+    }
+   ]
+  },
+  {
+   "slug": "norwich",
+   "name": "Norwich",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 52.63,
+   "lon": 1.3,
+   "feeds": [
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/england/norfolk/rss.xml"
+    },
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "nottingham",
+   "name": "Nottingham",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 52.95,
+   "lon": -1.15,
+   "feeds": [
+    {
+     "name": "Nottingham Post - frontpage",
+     "url": "https://www.nottinghampost.com/rss.xml"
+    },
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "nuremberg",
+   "name": "Nuremberg",
+   "region": "Bavaria",
+   "country": "Germany",
+   "country_code": "de",
+   "lat": 49.45,
+   "lon": 11.08,
+   "feeds": [
+    {
+     "name": "Aktuelle Nachrichten aus Franken, Bayern & der Welt",
+     "url": "https://www.nordbayern.de/?isRss=true"
+    },
+    {
+     "name": "NN.de - Ihr Onlineportal der Nürnberger Nachrichten",
+     "url": "https://www.nn.de/?isRss=true"
+    }
+   ]
+  },
+  {
+   "slug": "odesa",
+   "name": "Odesa",
+   "region": "Odesa Oblast",
+   "country": "Ukraine",
+   "country_code": "ua",
+   "lat": 46.48,
+   "lon": 30.72,
+   "feeds": [
+    {
+     "name": "Думская.net: Новости Одессы",
+     "url": "https://dumskaya.net/rss"
+    },
+    {
+     "name": "Українська правда",
+     "url": "https://www.pravda.com.ua/rss"
+    }
+   ]
+  },
+  {
+   "slug": "okotoks",
+   "name": "Okotoks",
+   "region": "Alberta",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 50.73,
+   "lon": -113.97,
+   "feeds": [
+    {
+     "name": "OkotoksOnline — Local News",
+     "url": "https://www.okotoksonline.com/rss/local-news"
+    },
+    {
+     "name": "CBC Calgary",
+     "url": "https://rss.cbc.ca/lineup/canada-calgary.xml"
+    },
+    {
+     "name": "Calgary Herald",
+     "url": "https://calgaryherald.com/feed"
+    },
+    {
+     "name": "Calgary Sun",
+     "url": "https://calgarysun.com/feed"
+    },
+    {
+     "name": "Edmonton Journal",
+     "url": "https://edmontonjournal.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "omaha",
+   "name": "Omaha",
+   "region": "Nebraska",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 41.26,
+   "lon": -95.93,
+   "feeds": [
+    {
+     "name": "omaha.com - RSS Results of type article with keyword(s) of #",
+     "url": "https://omaha.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc&k%5B%5D=%23topstory"
+    }
+   ]
+  },
+  {
+   "slug": "orlando",
+   "name": "Orlando",
+   "region": "Florida",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 28.54,
+   "lon": -81.38,
+   "feeds": [
+    {
+     "name": "Orlando Sentinel",
+     "url": "https://www.orlandosentinel.com/feed/atom"
+    }
+   ]
+  },
+  {
+   "slug": "oslo",
+   "name": "Oslo",
+   "region": "Oslo",
+   "country": "Norway",
+   "country_code": "no",
+   "lat": 59.91,
+   "lon": 10.75,
+   "feeds": [
+    {
+     "name": "Siste nyheter",
+     "url": "https://www.aftenposten.no/rss"
+    },
+    {
+     "name": "Siste nytt fra VG",
+     "url": "https://www.vg.no/rss/feed/?format=rss"
+    },
+    {
+     "name": "Siste – Stor-Oslo",
+     "url": "https://www.nrk.no/stor-oslo/siste.rss"
+    }
+   ]
+  },
+  {
+   "slug": "ottawa",
+   "name": "Ottawa",
+   "region": "Ontario",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 45.42,
+   "lon": -75.7,
+   "feeds": [
+    {
+     "name": "Ottawa Citizen",
+     "url": "https://ottawacitizen.com/feed/atom"
+    },
+    {
+     "name": "Ottawa Sun",
+     "url": "https://ottawasun.com/feed/atom"
+    },
+    {
+     "name": "CBC Ottawa",
+     "url": "https://rss.cbc.ca/lineup/canada-ottawa.xml"
+    }
+   ]
+  },
+  {
+   "slug": "oxford",
+   "name": "Oxford",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 51.75,
+   "lon": -1.26,
+   "feeds": [
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "paris",
+   "name": "Paris",
+   "region": "Île-de-France",
+   "country": "France",
+   "country_code": "fr",
+   "lat": 48.86,
+   "lon": 2.35,
+   "feeds": [
+    {
+     "name": "Île-de-France - L'actualité en continu - actu.fr",
+     "url": "https://actu.fr/ile-de-france/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "perth",
+   "name": "Perth",
+   "region": "Western Australia",
+   "country": "Australia",
+   "country_code": "au",
+   "lat": -31.95,
+   "lon": 115.86,
+   "feeds": [
+    {
+     "name": "WA Today - Latest News",
+     "url": "https://www.watoday.com.au/rss/feed.xml"
+    },
+    {
+     "name": "The West Australian",
+     "url": "https://thewest.com.au/feed"
+    }
+   ]
+  },
+  {
+   "slug": "philadelphia",
+   "name": "Philadelphia",
+   "region": "Pennsylvania",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 39.95,
+   "lon": -75.17,
+   "feeds": [
+    {
+     "name": "Billy Penn at WHYY",
+     "url": "https://billypenn.com/feed/"
+    },
+    {
+     "name": "WHYY",
+     "url": "https://whyy.org/feed"
+    }
+   ]
+  },
+  {
+   "slug": "phoenix",
+   "name": "Phoenix",
+   "region": "Arizona",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 33.45,
+   "lon": -112.07,
+   "feeds": [
+    {
+     "name": "Phoenix New Times",
+     "url": "https://www.phoenixnewtimes.com/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "pittsburgh",
+   "name": "Pittsburgh",
+   "region": "Pennsylvania",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 40.44,
+   "lon": -79.99,
+   "feeds": [
+    {
+     "name": "All Feed",
+     "url": "https://www.post-gazette.com/rss"
+    },
+    {
+     "name": "15-year-old charged in shooting that injured 3 outside Pitts",
+     "url": "https://triblive.com/rss"
+    }
+   ]
+  },
+  {
+   "slug": "plymouth",
+   "name": "Plymouth",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 50.37,
+   "lon": -4.14,
+   "feeds": [
+    {
+     "name": "The Herald - frontpage",
+     "url": "https://www.plymouthherald.co.uk/rss.xml"
+    },
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/england/devon/rss.xml"
+    },
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "portland",
+   "name": "Portland",
+   "region": "Oregon",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 45.52,
+   "lon": -122.68,
+   "feeds": [
+    {
+     "name": "KOIN.com",
+     "url": "https://www.koin.com/feed"
+    },
+    {
+     "name": "KGW RSS Feed: news",
+     "url": "https://www.kgw.com/feeds/syndication/rss/news"
+    }
+   ]
+  },
+  {
+   "slug": "porto",
+   "name": "Porto",
+   "region": "Norte",
+   "country": "Portugal",
+   "country_code": "pt",
+   "lat": 41.16,
+   "lon": -8.61,
+   "feeds": [
+    {
+     "name": "RTP Notícias / Geral / Últimas",
+     "url": "https://www.rtp.pt/noticias/rss"
+    }
+   ]
+  },
+  {
+   "slug": "poznan",
+   "name": "Poznan",
+   "region": "Greater Poland",
+   "country": "Poland",
+   "country_code": "pl",
+   "lat": 52.41,
+   "lon": 16.93,
+   "feeds": [
+    {
+     "name": "Głos Wielkopolski",
+     "url": "https://gloswielkopolski.pl/rss"
+    },
+    {
+     "name": "Poznan.wyborcza.pl",
+     "url": "https://poznan.wyborcza.pl/pub/rss/poznan.xml"
+    }
+   ]
+  },
+  {
+   "slug": "prague",
+   "name": "Prague",
+   "region": "Prague",
+   "country": "Czechia",
+   "country_code": "cz",
+   "lat": 50.08,
+   "lon": 14.44,
+   "feeds": [
+    {
+     "name": "iDNES.cz – s námi víte víc",
+     "url": "https://servis.idnes.cz/rss.aspx"
+    },
+    {
+     "name": "iROZHLAS.cz",
+     "url": "https://www.irozhlas.cz/rss/irozhlas"
+    },
+    {
+     "name": "Novinky - nejnovější články",
+     "url": "https://www.novinky.cz/rss"
+    }
+   ]
+  },
+  {
+   "slug": "providence",
+   "name": "Providence",
+   "region": "Rhode Island",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 41.82,
+   "lon": -71.41,
+   "feeds": [
+    {
+     "name": "TPR: The Public's Radio",
+     "url": "https://thepublicsradio.org/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "quebec-city",
+   "name": "Quebec City",
+   "region": "Quebec",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 46.81,
+   "lon": -71.21,
+   "feeds": [
+    {
+     "name": "Le Journal de Québec",
+     "url": "https://www.journaldequebec.com/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "raleigh",
+   "name": "Raleigh",
+   "region": "North Carolina",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 35.78,
+   "lon": -78.64,
+   "feeds": [
+    {
+     "name": "CBS17.com",
+     "url": "https://www.cbs17.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "red-deer",
+   "name": "Red Deer",
+   "region": "Alberta",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 52.27,
+   "lon": -113.81,
+   "feeds": [
+    {
+     "name": "Red Deer Advocate",
+     "url": "https://www.reddeeradvocate.com/feed"
+    },
+    {
+     "name": "CBC Edmonton",
+     "url": "https://rss.cbc.ca/lineup/canada-edmonton.xml"
+    },
+    {
+     "name": "Calgary Herald",
+     "url": "https://calgaryherald.com/feed"
+    },
+    {
+     "name": "Calgary Sun",
+     "url": "https://calgarysun.com/feed"
+    },
+    {
+     "name": "Edmonton Journal",
+     "url": "https://edmontonjournal.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "regina",
+   "name": "Regina",
+   "region": "Saskatchewan",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 50.45,
+   "lon": -104.62,
+   "feeds": [
+    {
+     "name": "CBC Saskatchewan",
+     "url": "https://rss.cbc.ca/lineup/canada-saskatchewan.xml"
+    }
+   ]
+  },
+  {
+   "slug": "rennes",
+   "name": "Rennes",
+   "region": "Brittany",
+   "country": "France",
+   "country_code": "fr",
+   "lat": 48.12,
+   "lon": -1.68,
+   "feeds": [
+    {
+     "name": "Ouest France.fr - L'actualité en direct, en continu et en im",
+     "url": "https://www.ouest-france.fr/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "richmond",
+   "name": "Richmond",
+   "region": "Virginia",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 37.54,
+   "lon": -77.44,
+   "feeds": [
+    {
+     "name": "richmond.com - RSS Results of type article with keyword(s) o",
+     "url": "https://richmond.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc&k%5B%5D=%23topstory"
+    },
+    {
+     "name": "VPM: Virginia's Home for Public Media",
+     "url": "https://www.vpm.org/feed"
+    }
+   ]
+  },
+  {
+   "slug": "rome",
+   "name": "Rome",
+   "region": "Lazio",
+   "country": "Italy",
+   "country_code": "it",
+   "lat": 41.9,
+   "lon": 12.5,
+   "feeds": [
+    {
+     "name": "RomaToday",
+     "url": "https://www.romatoday.it/rss"
+    },
+    {
+     "name": "ilmessaggero.it - Home",
+     "url": "https://www.ilmessaggero.it/rss/home.xml"
+    }
+   ]
+  },
+  {
+   "slug": "rotterdam",
+   "name": "Rotterdam",
+   "region": "South Holland",
+   "country": "Netherlands",
+   "country_code": "nl",
+   "lat": 51.92,
+   "lon": 4.48,
+   "feeds": [
+    {
+     "name": "Rijnmond",
+     "url": "https://www.rijnmond.nl/rss/feed.xml"
+    },
+    {
+     "name": "AD:rotterdam",
+     "url": "https://www.ad.nl/rotterdam/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "sacramento",
+   "name": "Sacramento",
+   "region": "California",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 38.58,
+   "lon": -121.49,
+   "feeds": [
+    {
+     "name": "KXTV RSS Feed: news",
+     "url": "https://www.abc10.com/feeds/syndication/rss/news"
+    }
+   ]
+  },
+  {
+   "slug": "salt-lake-city",
+   "name": "Salt Lake City",
+   "region": "Utah",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 40.76,
+   "lon": -111.89,
+   "feeds": [
+    {
+     "name": "The Salt Lake Tribune",
+     "url": "https://www.sltrib.com/arc/outboundfeeds/rss/?outputType=xml"
+    }
+   ]
+  },
+  {
+   "slug": "san-diego",
+   "name": "San Diego",
+   "region": "California",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 32.72,
+   "lon": -117.16,
+   "feeds": [
+    {
+     "name": "San Diego Union-Tribune",
+     "url": "https://www.sandiegouniontribune.com/feed/atom"
+    },
+    {
+     "name": "KPBS Homepage",
+     "url": "https://www.kpbs.org/index.rss"
+    }
+   ]
+  },
+  {
+   "slug": "san-francisco",
+   "name": "San Francisco",
+   "region": "California",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 37.77,
+   "lon": -122.42,
+   "feeds": [
+    {
+     "name": "SFist - San Francisco News, Restaurants, Events, & Sports",
+     "url": "https://sfist.com/rss/"
+    }
+   ]
+  },
+  {
+   "slug": "san-jose",
+   "name": "San Jose",
+   "region": "California",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 37.34,
+   "lon": -121.89,
+   "feeds": [
+    {
+     "name": "The Mercury News",
+     "url": "https://www.mercurynews.com/feed/atom"
+    }
+   ]
+  },
+  {
+   "slug": "saskatoon",
+   "name": "Saskatoon",
+   "region": "Saskatchewan",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 52.13,
+   "lon": -106.66,
+   "feeds": [
+    {
+     "name": "CBC Saskatoon",
+     "url": "https://rss.cbc.ca/lineup/canada-saskatoon.xml"
+    }
+   ]
+  },
+  {
+   "slug": "seattle",
+   "name": "Seattle",
+   "region": "Washington",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 47.61,
+   "lon": -122.33,
+   "feeds": [
+    {
+     "name": "The Seattle Times The Seattle Times",
+     "url": "https://www.seattletimes.com/feed/"
+    },
+    {
+     "name": "The Stranger",
+     "url": "https://www.thestranger.com/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "seville",
+   "name": "Seville",
+   "region": "Andalusia",
+   "country": "Spain",
+   "country_code": "es",
+   "lat": 37.39,
+   "lon": -5.99,
+   "feeds": [
+    {
+     "name": "Diario de Sevilla - Portada",
+     "url": "https://www.diariodesevilla.es/rss/"
+    },
+    {
+     "name": "RSS de noticias de sevilla",
+     "url": "https://www.abc.es/rss/2.0/sevilla/"
+    }
+   ]
+  },
+  {
+   "slug": "sheffield",
+   "name": "Sheffield",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 53.38,
+   "lon": -1.47,
+   "feeds": [
+    {
+     "name": "The Star",
+     "url": "https://www.thestar.co.uk/rss"
+    },
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/england/south_yorkshire/rss.xml"
+    },
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "sherbrooke",
+   "name": "Sherbrooke",
+   "region": "Quebec",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 45.4,
+   "lon": -71.9,
+   "feeds": [
+    {
+     "name": "Le Reflet du Lac",
+     "url": "https://www.lerefletdulac.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "southampton",
+   "name": "Southampton",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 50.9,
+   "lon": -1.4,
+   "feeds": [
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/england/hampshire/rss.xml"
+    },
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "spokane",
+   "name": "Spokane",
+   "region": "Washington",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 47.66,
+   "lon": -117.43,
+   "feeds": [
+    {
+     "name": "KREM RSS Feed: news",
+     "url": "https://www.krem.com/feeds/syndication/rss/news"
+    }
+   ]
+  },
+  {
+   "slug": "st-johns",
+   "name": "St. John's",
+   "region": "Newfoundland and Labrador",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 47.56,
+   "lon": -52.71,
+   "feeds": [
+    {
+     "name": "www.saltwire.com RSS Feed",
+     "url": "https://www.saltwire.com/category/newfoundland-labrador/feed.xml"
+    },
+    {
+     "name": "CBC Newfoundland and Labrador",
+     "url": "https://rss.cbc.ca/lineup/canada-newfoundland.xml"
+    }
+   ]
+  },
+  {
+   "slug": "st-louis",
+   "name": "St. Louis",
+   "region": "Missouri",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 38.63,
+   "lon": -90.2,
+   "feeds": [
+    {
+     "name": "www.stltoday.com - RSS Results of type article with keyword(",
+     "url": "https://www.stltoday.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc&k%5B%5D=%23topstory"
+    }
+   ]
+  },
+  {
+   "slug": "stockholm",
+   "name": "Stockholm",
+   "region": "Stockholm",
+   "country": "Sweden",
+   "country_code": "se",
+   "lat": 59.33,
+   "lon": 18.07,
+   "feeds": [
+    {
+     "name": "DN.se - Dagens Nyheter",
+     "url": "https://www.dn.se/rss/"
+    }
+   ]
+  },
+  {
+   "slug": "strasbourg",
+   "name": "Strasbourg",
+   "region": "Grand Est",
+   "country": "France",
+   "country_code": "fr",
+   "lat": 48.57,
+   "lon": 7.75,
+   "feeds": [
+    {
+     "name": "Grand Est - L'actualité en continu - actu.fr",
+     "url": "https://actu.fr/grand-est/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "stuttgart",
+   "name": "Stuttgart",
+   "region": "Baden-Württemberg",
+   "country": "Germany",
+   "country_code": "de",
+   "lat": 48.78,
+   "lon": 9.18,
+   "feeds": [
+    {
+     "name": "SWR Aktuell Studio Stuttgart",
+     "url": "https://www.swr.de/~atom/swraktuell/baden-wuerttemberg/stuttgart/index.xml"
+    }
+   ]
+  },
+  {
+   "slug": "surrey",
+   "name": "Surrey",
+   "region": "British Columbia",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 49.11,
+   "lon": -122.85,
+   "feeds": [
+    {
+     "name": "Surrey Now-Leader",
+     "url": "https://www.surreynowleader.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "swansea",
+   "name": "Swansea",
+   "region": "Wales",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 51.62,
+   "lon": -3.94,
+   "feeds": [
+    {
+     "name": "WalesOnline - Home",
+     "url": "https://www.walesonline.co.uk/rss.xml"
+    },
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/wales/south_west_wales/rss.xml"
+    },
+    {
+     "name": "BBC Wales",
+     "url": "https://feeds.bbci.co.uk/news/wales/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "sydney",
+   "name": "Sydney",
+   "region": "New South Wales",
+   "country": "Australia",
+   "country_code": "au",
+   "lat": -33.87,
+   "lon": 151.21,
+   "feeds": [
+    {
+     "name": "Sydney Morning Herald - Latest News",
+     "url": "https://www.smh.com.au/rss/feed.xml"
+    }
+   ]
+  },
+  {
+   "slug": "tampa",
+   "name": "Tampa",
+   "region": "Florida",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 27.95,
+   "lon": -82.46,
+   "feeds": [
+    {
+     "name": "WTSP RSS Feed: news",
+     "url": "https://www.wtsp.com/feeds/syndication/rss/news"
+    },
+    {
+     "name": "Latest & Breaking News | FOX 13 Tampa",
+     "url": "https://www.fox13news.com/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "tampere",
+   "name": "Tampere",
+   "region": "Pirkanmaa",
+   "country": "Finland",
+   "country_code": "fi",
+   "lat": 61.5,
+   "lon": 23.79,
+   "feeds": [
+    {
+     "name": "Yle Uutiset",
+     "url": "https://feeds.yle.fi/uutiset/v1/majorHeadlines/YLE_UUTISET.rss"
+    },
+    {
+     "name": "Tamperelainen",
+     "url": "https://www.tamperelainen.fi/feed/rss"
+    }
+   ]
+  },
+  {
+   "slug": "the-hague",
+   "name": "The Hague",
+   "region": "South Holland",
+   "country": "Netherlands",
+   "country_code": "nl",
+   "lat": 52.07,
+   "lon": 4.3,
+   "feeds": [
+    {
+     "name": "Omroep West",
+     "url": "https://www.omroepwest.nl/rss/feed.xml"
+    },
+    {
+     "name": "AD:den-haag",
+     "url": "https://www.ad.nl/den-haag/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "thessaloniki",
+   "name": "Thessaloniki",
+   "region": "Central Macedonia",
+   "country": "Greece",
+   "country_code": "gr",
+   "lat": 40.64,
+   "lon": 22.94,
+   "feeds": [
+    {
+     "name": "TyposThes",
+     "url": "https://www.typosthes.gr/rss.xml"
+    },
+    {
+     "name": "Rthess",
+     "url": "https://www.rthess.gr/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "thunder-bay",
+   "name": "Thunder Bay",
+   "region": "Ontario",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 48.38,
+   "lon": -89.25,
+   "feeds": [
+    {
+     "name": "NetNewsLedger",
+     "url": "https://www.netnewsledger.com/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "toronto",
+   "name": "Toronto",
+   "region": "Ontario",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 43.65,
+   "lon": -79.38,
+   "feeds": [
+    {
+     "name": "www.thestar.com - RSS Results of type article with keyword(s",
+     "url": "https://www.thestar.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc&k%5B%5D=%23topstory"
+    },
+    {
+     "name": "Toronto Sun",
+     "url": "https://torontosun.com/feed/atom"
+    },
+    {
+     "name": "blogTO",
+     "url": "https://www.blogto.com/rss/articles.xml"
+    },
+    {
+     "name": "CBC Toronto",
+     "url": "https://rss.cbc.ca/lineup/canada-toronto.xml"
+    }
+   ]
+  },
+  {
+   "slug": "toulouse",
+   "name": "Toulouse",
+   "region": "Occitanie",
+   "country": "France",
+   "country_code": "fr",
+   "lat": 43.6,
+   "lon": 1.44,
+   "feeds": [
+    {
+     "name": "La Dépêche du Midi : actualités et info en direct de la régi",
+     "url": "https://www.ladepeche.fr/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "tucson",
+   "name": "Tucson",
+   "region": "Arizona",
+   "country": "United States",
+   "country_code": "us",
+   "lat": 32.22,
+   "lon": -110.97,
+   "feeds": [
+    {
+     "name": "tucson.com - RSS Results of type article with keyword(s) of ",
+     "url": "https://tucson.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc&k%5B%5D=%23topstory"
+    }
+   ]
+  },
+  {
+   "slug": "turin",
+   "name": "Turin",
+   "region": "Piedmont",
+   "country": "Italy",
+   "country_code": "it",
+   "lat": 45.07,
+   "lon": 7.69,
+   "feeds": [
+    {
+     "name": "TorinoToday",
+     "url": "https://www.torinotoday.it/rss"
+    },
+    {
+     "name": "Repubblica.it",
+     "url": "https://www.repubblica.it/rss/homepage/rss2.0.xml"
+    }
+   ]
+  },
+  {
+   "slug": "utrecht",
+   "name": "Utrecht",
+   "region": "Utrecht",
+   "country": "Netherlands",
+   "country_code": "nl",
+   "lat": 52.09,
+   "lon": 5.12,
+   "feeds": [
+    {
+     "name": "RTV Utrecht",
+     "url": "https://www.rtvutrecht.nl/rss/feed.xml"
+    }
+   ]
+  },
+  {
+   "slug": "valencia",
+   "name": "Valencia",
+   "region": "Valencian Community",
+   "country": "Spain",
+   "country_code": "es",
+   "lat": 39.47,
+   "lon": -0.38,
+   "feeds": [
+    {
+     "name": "Levante-EMV - General",
+     "url": "https://www.levante-emv.com/rss"
+    },
+    {
+     "name": "À Punt",
+     "url": "https://www.apuntmedia.es/rss/"
+    }
+   ]
+  },
+  {
+   "slug": "vancouver",
+   "name": "Vancouver",
+   "region": "British Columbia",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 49.28,
+   "lon": -123.12,
+   "feeds": [
+    {
+     "name": "Vancouver Sun",
+     "url": "https://vancouversun.com/feed/atom"
+    },
+    {
+     "name": "The Province",
+     "url": "https://theprovince.com/feed/atom"
+    }
+   ]
+  },
+  {
+   "slug": "victoria",
+   "name": "Victoria",
+   "region": "British Columbia",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 48.43,
+   "lon": -123.37,
+   "feeds": [
+    {
+     "name": "Victoria News",
+     "url": "https://www.vicnews.com/feed"
+    }
+   ]
+  },
+  {
+   "slug": "vienna",
+   "name": "Vienna",
+   "region": "Vienna",
+   "country": "Austria",
+   "country_code": "at",
+   "lat": 48.21,
+   "lon": 16.37,
+   "feeds": [
+    {
+     "name": "derStandard.at | Nachrichten, Kommentare & Community",
+     "url": "https://www.derstandard.at/rss"
+    },
+    {
+     "name": "wien.ORF.at",
+     "url": "https://rss.orf.at/wien.xml"
+    },
+    {
+     "name": "kurier.at",
+     "url": "https://kurier.at/xml/rss"
+    }
+   ]
+  },
+  {
+   "slug": "vinnytsia",
+   "name": "Vinnytsia",
+   "region": "Vinnytsia Oblast",
+   "country": "Ukraine",
+   "country_code": "ua",
+   "lat": 49.23,
+   "lon": 28.47,
+   "feeds": [
+    {
+     "name": "Вежа",
+     "url": "https://vezha.ua/feed/"
+    }
+   ]
+  },
+  {
+   "slug": "warsaw",
+   "name": "Warsaw",
+   "region": "Masovian",
+   "country": "Poland",
+   "country_code": "pl",
+   "lat": 52.23,
+   "lon": 21.01,
+   "feeds": [
+    {
+     "name": "Wyborcza.pl",
+     "url": "https://wyborcza.pl/pub/rss/najnowsze_wyborcza.xml"
+    },
+    {
+     "name": "Aktualności z Warszawy",
+     "url": "https://warszawa.wyborcza.pl/pub/rss/warszawa.xml"
+    }
+   ]
+  },
+  {
+   "slug": "wellington",
+   "name": "Wellington",
+   "region": "Wellington",
+   "country": "New Zealand",
+   "country_code": "nz",
+   "lat": -41.29,
+   "lon": 174.78,
+   "feeds": [
+    {
+     "name": "Stuff - /",
+     "url": "https://www.stuff.co.nz/feed"
+    }
+   ]
+  },
+  {
+   "slug": "whitehorse",
+   "name": "Whitehorse",
+   "region": "Yukon",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 60.72,
+   "lon": -135.05,
+   "feeds": [
+    {
+     "name": "Yukon News",
+     "url": "https://www.yukon-news.com/feed"
+    },
+    {
+     "name": "CBC North",
+     "url": "https://rss.cbc.ca/lineup/canada-north.xml"
+    }
+   ]
+  },
+  {
+   "slug": "windsor",
+   "name": "Windsor",
+   "region": "Ontario",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 42.31,
+   "lon": -83.04,
+   "feeds": [
+    {
+     "name": "CBC Windsor",
+     "url": "https://rss.cbc.ca/lineup/canada-windsor.xml"
+    }
+   ]
+  },
+  {
+   "slug": "winnipeg",
+   "name": "Winnipeg",
+   "region": "Manitoba",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 49.9,
+   "lon": -97.14,
+   "feeds": [
+    {
+     "name": "Winnipeg Free Press",
+     "url": "https://www.winnipegfreepress.com/feed"
+    },
+    {
+     "name": "CBC Manitoba",
+     "url": "https://rss.cbc.ca/lineup/canada-manitoba.xml"
+    }
+   ]
+  },
+  {
+   "slug": "wollongong",
+   "name": "Wollongong",
+   "region": "New South Wales",
+   "country": "Australia",
+   "country_code": "au",
+   "lat": -34.42,
+   "lon": 150.89,
+   "feeds": [
+    {
+     "name": "Illawarra Mercury - News",
+     "url": "https://www.illawarramercury.com.au/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "wroclaw",
+   "name": "Wroclaw",
+   "region": "Lower Silesian",
+   "country": "Poland",
+   "country_code": "pl",
+   "lat": 51.11,
+   "lon": 17.03,
+   "feeds": [
+    {
+     "name": "Gazeta Wrocławska",
+     "url": "https://gazetawroclawska.pl/rss"
+    },
+    {
+     "name": "Wroclaw.wyborcza.pl",
+     "url": "https://wroclaw.wyborcza.pl/pub/rss/wroclaw.xml"
+    }
+   ]
+  },
+  {
+   "slug": "yellowknife",
+   "name": "Yellowknife",
+   "region": "Northwest Territories",
+   "country": "Canada",
+   "country_code": "ca",
+   "lat": 62.45,
+   "lon": -114.37,
+   "feeds": [
+    {
+     "name": "Cabin Radio",
+     "url": "https://cabinradio.ca/feed/"
+    },
+    {
+     "name": "Yellowknifer",
+     "url": "https://www.nnsl.com/feed"
+    },
+    {
+     "name": "CBC North",
+     "url": "https://rss.cbc.ca/lineup/canada-north.xml"
+    }
+   ]
+  },
+  {
+   "slug": "york",
+   "name": "York",
+   "region": "England",
+   "country": "United Kingdom",
+   "country_code": "gb",
+   "lat": 53.96,
+   "lon": -1.08,
+   "feeds": [
+    {
+     "name": "BBC News",
+     "url": "https://feeds.bbci.co.uk/news/england/north_yorkshire/rss.xml"
+    },
+    {
+     "name": "BBC England",
+     "url": "https://feeds.bbci.co.uk/news/england/rss.xml"
+    }
+   ]
+  },
+  {
+   "slug": "zaporizhzhia",
+   "name": "Zaporizhzhia",
+   "region": "Zaporizhzhia Oblast",
+   "country": "Ukraine",
+   "country_code": "ua",
+   "lat": 47.84,
+   "lon": 35.14,
+   "feeds": [
+    {
+     "name": "Новини Запоріжжя - головні і актуальні Запорізькі\n новини сь",
+     "url": "https://www.061.ua/rss"
+    }
+   ]
+  },
+  {
+   "slug": "zurich",
+   "name": "Zurich",
+   "region": "Zurich",
+   "country": "Switzerland",
+   "country_code": "ch",
+   "lat": 47.38,
+   "lon": 8.54,
+   "feeds": [
+    {
+     "name": "Watson: News, aber deep",
+     "url": "https://www.watson.ch/api/2.0/rss/index.xml?tag=Front"
+    }
+   ]
+  }
+ ]
+}

@@ -1,34 +1,38 @@
 {% extends "base.html" %}
-{% block title %}Log in — TownLine{% endblock %}
+{% block title %}TownsLine — Never miss what matters in your town{% endblock %}
+{% block bodyclass %}login-page{% endblock %}
 {% block content %}
-<div class="landing">
-  <div class="pitch">
-    <h1 class="pitch-title">Your town&rsquo;s news, in one inbox.</h1>
-    <p class="pitch-sub">TownLine scans your local news sources around the clock and serves them categorized, counted, and ready to read &mdash; no ads, no algorithms, no noise.</p>
-    <ul class="pitch-list">
-      <li><span class="pli">📰</span> Every local story in one place &mdash; your outlets, regional papers, and the wider web</li>
-      <li><span class="pli">🗂️</span> Sorted for you &mdash; News, Sport, Business, Community, automatically</li>
-      <li><span class="pli">✉️</span> An inbox, not a firehose &mdash; unread counts and mark-all-read, zero doomscrolling</li>
-      <li><span class="pli">★</span> Save the good ones to read later</li>
-      <li><span class="pli">📍</span> Tell it your town &mdash; local feeds suggested instantly</li>
-      <li><span class="pli">🔒</span> No ads. No tracking. No engagement algorithms.</li>
-    </ul>
-    <div class="how">
-      <div class="step"><span class="stepn">1</span> Create your account</div>
-      <div class="step"><span class="stepn">2</span> Pick your town</div>
-      <div class="step"><span class="stepn">3</span> Open your inbox &mdash; the news is already there</div>
+<div class="lp-hero">
+  <div class="lp-inner">
+    <div class="lp-pitch">
+      <span class="lp-kicker">TownsLine — Local news, reinvented</span>
+      <h1>Never miss what matters <em>in your town</em> again.</h1>
+      <p class="lp-sub">TownsLine watches every local news source around the clock — your outlets, regional papers, community feeds — and delivers one clean inbox. No ads. No algorithms deciding what you see. No doomscrolling.</p>
+      <div class="lp-cta">
+        <a class="lp-btn lp-btn-solid" href="{{ url_for('register') }}">Create free account</a>
+        <a class="lp-btn lp-btn-ghost" href="#lp-login">Log in</a>
+      </div>
+      <div class="lp-proof">
+        <div><b>24/7</b><span>automatic scanning</span></div>
+        <div><b>0</b><span>ads, trackers, algorithms</span></div>
+        <div><b>30s</b><span>to set up</span></div>
+      </div>
     </div>
-  </div>
-  <div class="card narrow logincard">
-    <h1>Log in</h1>
-    {% if error %}<p class="error">{{ error }}</p>{% endif %}
-    <form method="post">
-      <label>Username <input name="username" autocomplete="username" required></label>
-      <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
-      <button type="submit">Log in</button>
-    </form>
-    <p class="muted"><a href="{{ url_for('forgot_password') }}">Forgot your password?</a></p>
-    <p class="muted">New here? <a href="{{ url_for('register') }}">Create an account</a></p>
+    <div class="lp-card" id="lp-login">
+      <h2>Log in</h2>
+      {% if error %}<p class="error">{{ error }}</p>{% endif %}
+      <form method="post">
+        <label class="lp-field">Username
+          <input name="username" autocomplete="username" required>
+        </label>
+        <label class="lp-field">Password
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <button class="lp-btn lp-btn-solid lp-btn-block" type="submit">Log in</button>
+      </form>
+      <p class="lp-fine"><a href="{{ url_for('forgot_password') }}">Forgot your password?</a></p>
+      <p class="lp-fine">New here? <a href="{{ url_for('register') }}">Create an account</a></p>
+    </div>
   </div>
 </div>
 {% endblock %}

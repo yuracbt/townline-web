@@ -23,7 +23,7 @@ from html.parser import HTMLParser
 import feedparser
 import requests
 from flask import (Flask, flash, g, jsonify, redirect, render_template,
-                   request, session, url_for)
+                   request, Response, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -1802,7 +1802,31 @@ def locate():
 
 @app.context_processor
 def inject_helpers():
-    return {"rel_time": rel_time}
+    return {"rel_time": rel_time, "site_url": SITE_URL,
+            "canonical_url": SITE_URL + request.path}
+
+
+# ---------------------------------------------------------------- SEO
+SITE_URL = os.environ.get("SITE_URL", "https://townsline.com").rstrip("/")
+
+
+@app.route("/robots.txt")
+def robots_txt():
+    body = (f"User-agent: *\nAllow: /\nDisallow: /admin\n"
+            f"Sitemap: {SITE_URL}/sitemap.xml\n")
+    return Response(body, mimetype="text/plain")
+
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    pages = ["/login", "/register", "/forgot"]
+    urls = "".join(
+        f"<url><loc>{SITE_URL}{p}</loc><changefreq>weekly</changefreq>"
+        f"<priority>0.8</priority></url>" for p in pages)
+    xml = ('<?xml version="1.0" encoding="UTF-8"?>'
+           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+           f'{urls}</urlset>')
+    return Response(xml, mimetype="application/xml")
 
 
 def start_background():

@@ -22,7 +22,8 @@ body {
   padding: 12px 22px; background: var(--card);
   border-bottom: 1px solid var(--line);
 }
-.brand { font-weight: 700; font-size: 1.2rem; color: var(--accent); text-decoration: none; }
+.brand { font-weight: 700; font-size: 1.2rem; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+.brand img { border-radius: 6px; display: block; }
 .topbar nav a { margin-left: 16px; color: var(--ink); text-decoration: none; font-size: 0.95rem; }
 .topbar nav a:hover { color: var(--accent); }
 .wrap { max-width: 1100px; margin: 0 auto; padding: 22px; }

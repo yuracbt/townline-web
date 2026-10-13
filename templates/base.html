@@ -6,7 +6,7 @@
 <title>{% block title %}TownLine{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=css_version) }}">
 </head>
-<body{% if theme == 'dark' %} class="dark"{% endif %}>
+<body class="{% if theme == 'dark' %}dark {% endif %}{% block bodyclass %}{% endblock %}">
 <header class="topbar">
   <a class="brand" href="{{ url_for('dashboard') }}">TownLine</a>
   {% if user %}

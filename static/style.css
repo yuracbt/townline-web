@@ -10,6 +10,8 @@
   --line-soft: #f0ece2;
   --unread-bg: #fffaf3;
   --danger: #b3402e;
+  --overdue-bg: #fdecea;
+  --overdue-bg-hover: #f9d5cd;
 }
 * { box-sizing: border-box; }
 body {
@@ -201,6 +203,8 @@ body.dark {
   --line-soft: #2a2f34;
   --unread-bg: #232220;
   --danger: #d96a5a;
+  --overdue-bg: #4a2a24;
+  --overdue-bg-hover: #5a332b;
 }
 body.dark input, body.dark select {
   background: #24282c; color: var(--ink); border-color: var(--line);
@@ -356,6 +360,9 @@ body.login-page .brand { color: #f5b95e; }
 .admintable th { white-space: nowrap; }
 .admintable tr[data-href] { cursor: pointer; }
 .admintable tr[data-href]:hover td { background: var(--line-soft); }
+/* Overdue sponsor: active but past its renewal date — unpaid. */
+.admintable tr.overdue td { background: var(--overdue-bg); }
+.admintable tr.overdue[data-href]:hover td { background: var(--overdue-bg-hover); }
 .suggest-head h2 { margin: 0; }
 .sponsor-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .sponsor-item:last-child { border-bottom: none; }

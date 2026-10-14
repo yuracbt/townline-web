@@ -96,14 +96,10 @@ document.addEventListener('click', function(e){
             <button type="submit" class="linklike">Mark paid</button>
           </form>
           |
-          <form method="post" action="{{ url_for('admin_sponsor_toggle', sid=s['id']) }}" style="display:inline">
-            <button type="submit" class="linklike">{% if s['is_active'] %}Pause{% else %}Resume{% endif %}</button>
-          </form>
+          {% if s['is_active'] %}<a href="{{ url_for('admin_sponsor_pause', sid=s['id']) }}">Pause</a>
+          {% else %}<form method="post" action="{{ url_for('admin_sponsor_resume', sid=s['id']) }}" style="display:inline"><button type="submit" class="linklike">Resume</button></form>{% endif %}
           |
-          <form method="post" action="{{ url_for('admin_sponsor_delete', sid=s['id']) }}" style="display:inline"
-                onsubmit="return confirm('Delete sponsor {{ s['name'] }}? This cannot be undone.')">
-            <button type="submit" class="linklike danger">Delete</button>
-          </form>
+          <a href="{{ url_for('admin_sponsor_delete', sid=s['id']) }}">Delete</a>
         </td>
       </tr>
     {% endfor %}

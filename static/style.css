@@ -338,7 +338,8 @@ body.login-page .brand { color: #f5b95e; }
 .fbtn:hover { text-decoration: none !important; filter: brightness(0.93); }
 
 /* ---- Sponsored local businesses (town pages) ---- */
-.sponsor-list { list-style: none; margin: 0; padding: 0; }
+.suggest-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.suggest-head h2 { margin: 0; }
 .sponsor-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .sponsor-item:last-child { border-bottom: none; }
 .sponsor-name { font-weight: 600; }

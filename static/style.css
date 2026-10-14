@@ -354,6 +354,8 @@ body.login-page .brand { color: #f5b95e; }
 .status-pill.ok { background: #e3f2e4; color: #2e6b34; }
 .status-pill.bad { background: #fbe9e5; color: var(--danger); }
 .admintable th { white-space: nowrap; }
+.admintable tr[data-href] { cursor: pointer; }
+.admintable tr[data-href]:hover td { background: var(--line-soft); }
 .suggest-head h2 { margin: 0; }
 .sponsor-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .sponsor-item:last-child { border-bottom: none; }

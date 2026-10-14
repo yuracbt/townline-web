@@ -30,6 +30,7 @@
     <a href="{{ url_for('feeds_page') }}"{% if request.endpoint == 'feeds_page' %} class="on"{% endif %}>Feeds</a>
     <a href="{{ url_for('places_page') }}"{% if request.endpoint == 'places_page' %} class="on"{% endif %}>Places</a>
     <a href="{{ url_for('settings_page') }}"{% if request.endpoint == 'settings_page' %} class="on"{% endif %}>Settings</a>
+    <a href="{{ url_for('feedback_page') }}"{% if request.endpoint == 'feedback_page' %} class="on"{% endif %}>Feedback</a>
     {% if is_admin %}<a href="{{ url_for('admin_panel') }}"{% if request.endpoint == 'admin_panel' %} class="on"{% endif %}>Admin</a>{% endif %}
     <a href="{{ url_for('logout') }}">Logout ({{ user['username'] }})</a>
   </nav>

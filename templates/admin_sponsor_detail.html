@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ sponsor['name'] }} — Sponsor — TownsLine{% endblock %}
+{% block content %}
+<h1>{{ sponsor['name'] }}</h1>
+<p><a href="{{ url_for('admin_sponsors') }}">← Back to Sponsors</a></p>
+
+<div class="card">
+  <h2>Edit sponsor</h2>
+  <form method="post" action="{{ url_for('admin_sponsor_edit', sid=sponsor['id']) }}">
+    <label>Name <input name="name" value="{{ sponsor['name'] }}" required></label>
+    <label>One-line description <input name="tagline" value="{{ sponsor['tagline'] or '' }}"></label>
+    <label>Website URL <input name="url" type="url" value="{{ sponsor['url'] }}" required></label>
+    <label>Town <input name="town" value="{{ sponsor['town_name'] or sponsor['town_slug'] }}" required></label>
+    <label>Reach (km) <input name="radius_km" type="number" min="0" step="1" value="{{ sponsor['radius_km']|int }}"></label>
+    <label>Business email <input name="email" type="email" value="{{ sponsor['email'] or '' }}" required></label>
+    <label>Active since <input name="active_since" type="date" value="{{ sponsor['active_since'] or '' }}"></label>
+    <label>Renews (payment due) <input name="renews_on" type="date" value="{{ sponsor['renews_on'] or '' }}"></label>
+    <button type="submit" class="btn">Save changes</button>
+  </form>
+  <p>
+    <form method="post" action="{{ url_for('admin_sponsor_toggle', sid=sponsor['id']) }}" style="display:inline">
+      <button type="submit" class="btn ghost">{% if sponsor['is_active'] %}Pause listing{% else %}Resume listing{% endif %}</button>
+    </form>
+    <form method="post" action="{{ url_for('admin_sponsor_delete', sid=sponsor['id']) }}" style="display:inline"
+          onsubmit="return confirm('Delete sponsor {{ sponsor['name'] }}? This cannot be undone.')">
+      <button type="submit" class="btn ghost danger">Delete sponsor</button>
+    </form>
+  </p>
+  <p class="muted small">Status: {% if sponsor['is_active'] %}Active{% else %}<span class="error">Paused</span>{% endif %}. Pause hides the listing and all its news everywhere.</p>
+</div>
+
+<div class="card">
+  <h2>Their own news page</h2>
+  <p class="muted">Share this link with the business — they can add and edit their own news with it, no TownsLine account needed. Keep it private: anyone with the link can post news as this business.</p>
+  <p><code>{{ portal_url }}</code></p>
+  <form method="post" action="{{ url_for('admin_sponsor_regenerate', sid=sponsor['id']) }}"
+        onsubmit="return confirm('Issue a new portal link? The old one will stop working.')">
+    <button type="submit" class="btn ghost">Issue a new link</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>News ({{ news|length }})</h2>
+  <p class="muted small">Each news item appears as a Sponsored card on the Business tile for readers in {{ sponsor['town_name'] or sponsor['town_slug'] }} and nearby. Expired news hides automatically.</p>
+  {% for n in news %}
+  <form method="post" action="{{ url_for('admin_sponsor_news_edit', nid=n['id']) }}" class="news-edit">
+    <label>Headline <input name="title" value="{{ n['title'] }}" required></label>
+    <label>Line <input name="text" value="{{ n['text'] or '' }}"></label>
+    <label>Link <input name="url" type="url" value="{{ n['url'] or '' }}"></label>
+    <label>Expires <input name="expires" type="date" value="{{ n['expires'] or '' }}"></label>
+    <button type="submit" class="btn ghost">Save</button>
+    <button type="submit" class="btn ghost" formaction="{{ url_for('admin_sponsor_news_toggle', nid=n['id']) }}">{% if n['is_active'] %}Hide{% else %}Show{% endif %}</button>
+    <button type="submit" class="btn ghost danger" formaction="{{ url_for('admin_sponsor_news_delete', nid=n['id']) }}"
+            onclick="return confirm('Delete this news item?')">Delete</button>
+  </form>
+  {% if not loop.last %}<hr>{% endif %}
+  {% else %}
+  <p class="muted">No news yet.</p>
+  {% endfor %}
+  <h3>Add news</h3>
+  <form method="post" action="{{ url_for('admin_sponsor_news_add', sid=sponsor['id']) }}">
+    <label>Headline <input name="title" placeholder="e.g. Now accepting new patients" required></label>
+    <label>Line <input name="text" placeholder="e.g. Call us to book your visit"></label>
+    <label>Link <input name="url" type="url" placeholder="https://… (blank = business website)"></label>
+    <label>Expires <input name="expires" type="date"></label>
+    <button type="submit" class="btn">Add news</button>
+  </form>
+</div>
+{% endblock %}

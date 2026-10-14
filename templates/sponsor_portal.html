@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ sponsor['name'] }} — Your news on TownsLine{% endblock %}
+{% block content %}
+<h1>{{ sponsor['name'] }}</h1>
+<p class="muted">Your news on TownsLine. Anything you post here appears as a Sponsored card on the Business tile for readers in {{ sponsor['town_name'] or sponsor['town_slug'] }} and nearby towns.</p>
+
+<div class="card">
+  <h2>Your news ({{ news|length }})</h2>
+  {% for n in news %}
+  <form method="post" action="{{ url_for('sponsor_portal_news_edit', code=sponsor['code'], nid=n['id']) }}" class="news-edit">
+    <label>Headline <input name="title" value="{{ n['title'] }}" required></label>
+    <label>Line <input name="text" value="{{ n['text'] or '' }}"></label>
+    <label>Link <input name="url" type="url" value="{{ n['url'] or '' }}"></label>
+    <label>Expires <input name="expires" type="date" value="{{ n['expires'] or '' }}"></label>
+    <button type="submit" class="btn ghost">Save</button>
+    <button type="submit" class="btn ghost danger" formaction="{{ url_for('sponsor_portal_news_delete', code=sponsor['code'], nid=n['id']) }}"
+            onclick="return confirm('Delete this news item?')">Delete</button>
+  </form>
+  {% if not loop.last %}<hr>{% endif %}
+  {% else %}
+  <p class="muted">No news yet — add your first one below.</p>
+  {% endfor %}
+  <h3>Add news</h3>
+  <form method="post" action="{{ url_for('sponsor_portal_news_add', code=sponsor['code']) }}">
+    <label>Headline <input name="title" placeholder="e.g. Now accepting new patients" required></label>
+    <label>Line <input name="text" placeholder="e.g. Call us to book your visit"></label>
+    <label>Link <input name="url" type="url" placeholder="https://… (blank = your website)"></label>
+    <label>Expires <input name="expires" type="date"></label>
+    <button type="submit" class="btn">Add news</button>
+  </form>
+  <p class="muted small">Tip: keep it to one short line — readers see the headline first. News with an expiry date hides itself automatically after that day.</p>
+</div>
+{% endblock %}

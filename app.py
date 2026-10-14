@@ -152,42 +152,35 @@ def get_sponsors_for_user(settings):
     return out
 
 
-def live_sponsor_promos_for_user(settings):
-    """Live sponsor news for the user's sponsors, as Sponsored cards.
+def sponsor_news_stories_for_user(settings):
+    """Sponsor news as story-shaped rows for the Business tile.
 
-    A sponsor can have several news items (added by the admin or by the
-    sponsor through their own portal link); each live one — active and
-    unexpired — becomes one card on the Business tile.
+    When a business posts news (via their portal link or the admin),
+    readers see it as a news item in the Business tile — a row in the
+    story list, labeled Sponsored — not a separate promo card.
     """
     db = get_db()
-    user_slug = town_slug_for(settings.get("town_name"))
-    ulat, ulon = settings.get("lat"), settings.get("lon")
     today = datetime.now(timezone.utc).date().isoformat()
     out = []
-    for s in db.execute(
-            "SELECT * FROM sponsors WHERE is_active = 1 ORDER BY name"
-    ).fetchall():
-        in_reach = s["town_slug"] == user_slug
-        if (not in_reach and ulat and ulon and s["lat"] and s["lon"]
-                and s["radius_km"]
-                and haversine_km(ulat, ulon, s["lat"], s["lon"])
-                <= s["radius_km"]):
-            in_reach = True
-        if not in_reach:
-            continue
+    for s in get_sponsors_for_user(settings):
         for n in db.execute(
                 "SELECT * FROM sponsor_news WHERE sponsor_id = ? "
-                "AND is_active = 1 ORDER BY created_at",
+                "AND is_active = 1 ORDER BY created_at DESC",
                 (s["id"],)).fetchall():
             expires = (n["expires"] or "").strip()
             if expires and expires < today:
                 continue
             out.append({
-                "name": s["name"],
-                "url": s["url"],
-                "key": f"news:{n['id']}",
-                "promo": {"title": n["title"], "text": n["text"] or "",
-                          "url": n["url"] or s["url"]},
+                "id": None,
+                "title": n["title"],
+                "text": n["text"] or "",
+                "url": n["url"] or s["url"],
+                "feed_name": s["name"],
+                "published": n["created_at"],
+                "category": "Business",
+                "is_read": 1,
+                "is_saved": 0,
+                "is_sponsor": True,
             })
     return out
 
@@ -2013,14 +2006,22 @@ def dashboard():
         stories = db.execute(
             base + " ORDER BY s.published DESC", params).fetchall()
 
+    stories = [dict(r) for r in stories]
+    for st in stories:
+        st["is_sponsor"] = False
+    # Sponsor news reads as news in the Business tile: merge the
+    # sponsor rows into the story list (page 1 only, so they never
+    # repeat across pages), newest first.
+    if active_cat == "Business" and page == 1:
+        stories += sponsor_news_stories_for_user(settings)
+        stories.sort(key=lambda r: r["published"], reverse=True)
+
     return render_template(
         "dashboard.html", user=user, settings=settings, chips=chips,
         active_cat=active_cat, unread=unread_total, unread_only=unread_only,
         cat_unread=cat_unread,
         stories=stories, rel_time=rel_time, page=page, total_pages=total_pages,
         page_url=page_url,
-        sponsor_promos=(live_sponsor_promos_for_user(settings)
-                        if active_cat == "Business" else []),
         unread_on_url=chip_url(category=active_cat or None, unread=True),
         unread_off_url=chip_url(category=active_cat or None, unread=False),
     )

@@ -118,6 +118,13 @@ def init_db():
             pw_hash TEXT NOT NULL,
             created_at INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            message TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
         CREATE TABLE IF NOT EXISTS settings (
             user_id INTEGER PRIMARY KEY,
             town_name TEXT DEFAULT '',
@@ -210,6 +217,9 @@ def current_user():
 # ---------------------------------------------------------------- auth helpers
 
 ADMIN_USERNAME = "yuriy.chobotok@gmail.com"
+# Where admin notifications go (new account, feedback). Defaults to the
+# admin's username, which is an email address in this deployment.
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", ADMIN_USERNAME)
 
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 
@@ -270,6 +280,15 @@ def send_email(to_addr, subject, body):
     except Exception as e:  # noqa: BLE001 - delivery failure is non-fatal
         app.logger.warning("email to %s failed: %s", to_addr, e)
         return False
+
+
+def notify_admin(subject, body):
+    """Email the admin (new account, feedback). Never raises; delivery
+    failure is logged by send_email and the user flow continues."""
+    try:
+        send_email(ADMIN_EMAIL, subject, body)
+    except Exception as e:  # noqa: BLE001 - admin notice is non-fatal
+        app.logger.warning("admin notify failed: %s", e)
 
 
 def send_reset_email(to_addr, reset_link):
@@ -971,6 +990,11 @@ def register():
             db.commit()
             # Blank slate: no town, no feeds. The user picks their location
             # in Settings, which seeds matching feeds for that town.
+            notify_admin(
+                f"New TownsLine account: {username}",
+                f"A new user just registered on TownsLine.\n\n"
+                f"Username: {username}\nEmail: {email}\n",
+            )
             session["user_id"] = uid
             return redirect(url_for("settings_page"))
     return render_template("register.html", error=error)
@@ -996,6 +1020,32 @@ def login():
         else:
             error = "Wrong username or password."
     return render_template("login.html", error=error)
+
+
+@app.route("/feedback", methods=["GET", "POST"])
+@login_required
+def feedback_page():
+    user = current_user()
+    if request.method == "POST":
+        message = (request.form.get("message") or "").strip()
+        if not message:
+            flash("Please write something before sending.")
+        else:
+            db = get_db()
+            db.execute(
+                "INSERT INTO feedback (user_id, message, created_at) "
+                "VALUES (?,?,?)",
+                (user["id"], message[:2000], int(time.time())),
+            )
+            db.commit()
+            notify_admin(
+                f"TownsLine feedback from {user['username']}",
+                f"Feedback from {user['username']} ({user['email'] or 'no email'}):\n\n"
+                f"{message[:2000]}\n",
+            )
+            flash("Thanks for the feedback!")
+            return redirect(url_for("dashboard"))
+    return render_template("feedback.html", user=user)
 
 
 @app.route("/logout")
@@ -1120,7 +1170,18 @@ def admin_panel():
         d["link"] = url_for("password_reset", token=t["token"],
                             _external=True)
         token_rows.append(d)
+    feedback_rows = []
+    for f in db.execute(
+        "SELECT f.message, f.created_at, u.username, u.email "
+        "FROM feedback f JOIN users u ON u.id = f.user_id "
+        "ORDER BY f.created_at DESC LIMIT 50"
+    ).fetchall():
+        d = dict(f)
+        d["created_str"] = datetime.fromtimestamp(
+            f["created_at"], tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
+        feedback_rows.append(d)
     return render_template("admin.html", users=user_rows, tokens=token_rows,
+                           feedback=feedback_rows,
                            admin_username=ADMIN_USERNAME,
                            email_ok=email_configured(),
                            user=current_user())

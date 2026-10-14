@@ -5,11 +5,20 @@
   <div>
     <h1>{{ settings.get('town_name') or 'Your town' }}</h1>
     <p class="muted">
-      {% if unread and settings.get('notify_enabled') %}
+      {% if active_cat %}
+        {% if cat_unread and settings.get('notify_enabled') %}
+          <strong><span data-unread-count data-cat="{{ active_cat }}">{{ cat_unread }}</span> new {{ 'story' if cat_unread == 1 else 'stories' }}</strong>
+          — <a href="{{ url_for('mark_all_read', category=active_cat) }}">mark all read</a>
+        {% elif cat_unread %}
+          <span data-unread-count data-cat="{{ active_cat }}">{{ cat_unread }}</span> unread
+        {% else %}
+          All caught up
+        {% endif %}
+      {% elif unread and settings.get('notify_enabled') %}
         <strong><span data-unread-count data-cat="__all__">{{ unread }}</span> new {{ 'story' if unread == 1 else 'stories' }}</strong>
         — <a href="{{ url_for('mark_all_read') }}">mark all read</a>
       {% elif unread %}
-        <span data-unread-count>{{ unread }}</span> unread
+        <span data-unread-count data-cat="__all__">{{ unread }}</span> unread
       {% else %}
         All caught up
       {% endif %}
@@ -75,7 +84,7 @@
       <span>{{ rel_time(s['published']) }}</span>
       <span class="actions">
         <a class="iconbtn" data-act="save" href="{{ url_for('toggle_save', sid=s['id']) }}" title="Save / unsave">{{ '★' if s['is_saved'] else '☆' }}</a>
-        {% if not s['is_read'] %}<a class="iconbtn markread-btn" data-act="read" href="{{ url_for('mark_read', sid=s['id']) }}" title="Mark only this story read">Mark read</a>{% endif %}
+        {% if not s['is_read'] %}<a class="iconbtn" data-act="read" href="{{ url_for('mark_read', sid=s['id']) }}" title="Mark read">✓</a>{% endif %}
       </span>
     </div>
   </li>

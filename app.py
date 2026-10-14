@@ -1862,7 +1862,15 @@ def town_page(slug):
     town = TOWNS.get(slug)
     if not town:
         return render_template("404.html"), 404
-    return render_template("town.html", town=town)
+    # Sponsored local businesses for this town (fully manual: sponsors.json
+    # is edited by hand when a business signs up). Empty list hides the section.
+    sponsors = []
+    try:
+        with open(os.path.join(BASE_DIR, "sponsors.json")) as fh:
+            sponsors = json.load(fh).get(slug, []) or []
+    except (OSError, ValueError):
+        sponsors = []
+    return render_template("town.html", town=town, sponsors=sponsors)
 
 
 @app.route("/about")

@@ -12,6 +12,7 @@
     <div>
       <strong><a href="{{ s['url'] }}" target="_blank" rel="noopener">{{ s['name'] }}</a></strong>
       <span class="pill">Featured</span>
+      {% if s.get('example') %}<span class="pill">Example</span>{% endif %}
       {% if s.get('tagline') %}<div class="muted small">{{ s['tagline'] }}</div>{% endif %}
     </div>
   </li>

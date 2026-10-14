@@ -9,6 +9,7 @@ chosen interval (minimum 5 minutes).
 """
 
 import json
+import math
 import os
 import re
 import secrets
@@ -92,20 +93,11 @@ TOWNS = load_towns()
 
 
 def load_sponsors():
-    """Sponsored local businesses, keyed by town slug. {} on any problem.
-
-    One file is the source of truth for every surface: the public town
-    page, the in-app Places tab, and news-line promos. Fully manual —
-    a sponsor is added by editing sponsors.json and deploying.
-    Entry shape: {"name", "tagline", "url", "promo": {"title", "text",
-    "url", "expires": "YYYY-MM-DD"}} — promo is optional.
-    """
-    try:
-        with open(os.path.join(BASE_DIR, "sponsors.json")) as fh:
-            data = json.load(fh)
-        return data if isinstance(data, dict) else {}
-    except (OSError, ValueError):
-        return {}
+    """All sponsors as dicts (admin list). Kept for symmetry; the live
+    surfaces use the filtered helpers below."""
+    db = get_db()
+    return [dict(r) for r in db.execute(
+        "SELECT * FROM sponsors ORDER BY is_active DESC, name").fetchall()]
 
 
 def town_slug_for(town_name):
@@ -120,24 +112,63 @@ def town_slug_for(town_name):
     return re.sub(r"[^a-z0-9]+", "-", name).strip("-")
 
 
-def live_sponsor_promos(town_name):
-    """Sponsors of this town with a live (unexpired) promo, if any."""
-    slug = town_slug_for(town_name)
+def haversine_km(lat1, lon1, lat2, lon2):
+    """Great-circle distance in km between two lat/lon points."""
+    r = math.radians
+    dlat = r(lat2 - lat1)
+    dlon = r(lon2 - lon1)
+    a = (math.sin(dlat / 2) ** 2
+         + math.cos(r(lat1)) * math.cos(r(lat2)) * math.sin(dlon / 2) ** 2)
+    return 6371 * 2 * math.asin(math.sqrt(a))
+
+
+def get_sponsors_for_town(slug):
+    """Active sponsors listed under this town slug (public town page)."""
+    db = get_db()
+    return [dict(r) for r in db.execute(
+        "SELECT * FROM sponsors WHERE is_active = 1 AND town_slug = ? "
+        "ORDER BY name", (slug,)).fetchall()]
+
+
+def get_sponsors_for_user(settings):
+    """Active sponsors for the user's own town, or within the sponsor's
+    radius of the user's coordinates — so a user in Calgary or Balzac
+    also sees an Airdrie business."""
+    db = get_db()
+    user_slug = town_slug_for(settings.get("town_name"))
+    ulat, ulon = settings.get("lat"), settings.get("lon")
     out = []
-    today = datetime.now(timezone.utc).date().isoformat()
-    for s in load_sponsors().get(slug, []) or []:
-        promo = s.get("promo") or {}
-        if not (promo.get("title") or "").strip():
+    for r in db.execute(
+            "SELECT * FROM sponsors WHERE is_active = 1 ORDER BY name"
+    ).fetchall():
+        d = dict(r)
+        if d["town_slug"] == user_slug:
+            out.append(d)
             continue
-        expires = (promo.get("expires") or "").strip()
+        if (ulat and ulon and d["lat"] and d["lon"] and d["radius_km"]
+                and haversine_km(ulat, ulon, d["lat"], d["lon"])
+                <= d["radius_km"]):
+            out.append(d)
+    return out
+
+
+def live_sponsor_promos_for_user(settings):
+    """Live (unexpired) promos among the user's sponsors."""
+    today = datetime.now(timezone.utc).date().isoformat()
+    out = []
+    for s in get_sponsors_for_user(settings):
+        title = (s.get("promo_title") or "").strip()
+        if not title:
+            continue
+        expires = (s.get("promo_expires") or "").strip()
         if expires and expires < today:
             continue
         out.append({
             "name": s.get("name", ""),
             "url": s.get("url", ""),
-            "key": f"{slug}|{s.get('name', '')}|{promo.get('title', '')}",
-            "example": bool(s.get("example")),
-            "promo": promo,
+            "key": f"{s.get('town_slug', '')}|{s.get('name', '')}|{title}",
+            "promo": {"title": title, "text": s.get("promo_text") or "",
+                      "url": s.get("promo_url") or s.get("url") or ""},
         })
     return out
 
@@ -220,6 +251,23 @@ def init_db():
             url TEXT NOT NULL,
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS sponsors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            tagline TEXT DEFAULT '',
+            url TEXT NOT NULL,
+            town_slug TEXT NOT NULL DEFAULT '',
+            town_name TEXT DEFAULT '',
+            lat REAL,
+            lon REAL,
+            radius_km REAL DEFAULT 30,
+            promo_title TEXT DEFAULT '',
+            promo_text TEXT DEFAULT '',
+            promo_url TEXT DEFAULT '',
+            promo_expires TEXT DEFAULT '',
+            is_active INTEGER DEFAULT 1,
+            created_at INTEGER NOT NULL
+        );
         """
     )
     # Migrations for databases created before these columns existed.
@@ -251,6 +299,30 @@ def init_db():
     # Drop duplicate feeds/places that slipped in before the dedup guards.
     _dedup_table(db, "feeds")
     _dedup_table(db, "places")
+    # One-time seed: import sponsors.json into the sponsors table the first
+    # time it is empty, so the file-based demo listing survives the move to
+    # database-managed sponsors. Later edits happen in the Admin page.
+    if db.execute("SELECT COUNT(*) c FROM sponsors").fetchone()["c"] == 0:
+        try:
+            with open(os.path.join(BASE_DIR, "sponsors.json")) as fh:
+                seed = json.load(fh)
+        except (OSError, ValueError):
+            seed = {}
+        for slug, entries in (seed or {}).items():
+            town = TOWNS.get(slug, {}) if isinstance(TOWNS, dict) else {}
+            for e in entries or []:
+                promo = e.get("promo") or {}
+                db.execute(
+                    "INSERT INTO sponsors (name, tagline, url, town_slug, "
+                    "town_name, lat, lon, radius_km, promo_title, promo_text, "
+                    "promo_url, promo_expires, is_active, created_at) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
+                    (e.get("name", ""), e.get("tagline", ""), e.get("url", ""),
+                     slug, town.get("name", slug), town.get("lat"),
+                     town.get("lon"), 30, promo.get("title", ""),
+                     promo.get("text", ""), promo.get("url", ""),
+                     promo.get("expires", ""), int(time.time())),
+                )
     db.commit()
     db.close()
 
@@ -1231,8 +1303,10 @@ def admin_panel():
         d["created_str"] = datetime.fromtimestamp(
             f["created_at"], tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
         feedback_rows.append(d)
+    sponsor_rows = [dict(r) for r in db.execute(
+        "SELECT * FROM sponsors ORDER BY is_active DESC, name").fetchall()]
     return render_template("admin.html", users=user_rows, tokens=token_rows,
-                           feedback=feedback_rows,
+                           feedback=feedback_rows, sponsors=sponsor_rows,
                            admin_username=ADMIN_USERNAME,
                            email_ok=email_configured(),
                            user=current_user())
@@ -1327,6 +1401,90 @@ def admin_delete():
         db.execute("DELETE FROM users WHERE id = ?", (target_id,))
         db.commit()
         flash("Deleted " + target["username"] + " and all their data.")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/sponsors/add", methods=["POST"])
+@login_required
+@admin_required
+def admin_sponsor_add():
+    """Add a sponsor from the Admin page — live immediately, no deploy."""
+    name = request.form.get("name", "").strip()
+    tagline = request.form.get("tagline", "").strip()
+    url = request.form.get("url", "").strip()
+    town = request.form.get("town", "").strip()
+    try:
+        radius = float(request.form.get("radius_km", "30") or 30)
+    except ValueError:
+        radius = 30.0
+    promo_title = request.form.get("promo_title", "").strip()
+    promo_text = request.form.get("promo_text", "").strip()
+    promo_url = request.form.get("promo_url", "").strip()
+    promo_expires = request.form.get("promo_expires", "").strip()
+    if not name or not url or not town:
+        flash("Name, website and town are required.")
+        return redirect(url_for("admin_panel"))
+    slug = town_slug_for(town)
+    # Coordinates for nearby matching: prefer the town directory, else
+    # geocode the town name via Nominatim (same source as Settings).
+    lat = lon = None
+    if slug in TOWNS:
+        lat, lon = TOWNS[slug].get("lat"), TOWNS[slug].get("lon")
+    if lat is None:
+        try:
+            r = requests.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": town, "format": "json", "limit": 1},
+                headers={"User-Agent": UA}, timeout=10)
+            item = (r.json() or [None])[0]
+            if item:
+                lat, lon = float(item["lat"]), float(item["lon"])
+        except Exception:
+            pass
+    db = get_db()
+    db.execute(
+        "INSERT INTO sponsors (name, tagline, url, town_slug, town_name, "
+        "lat, lon, radius_km, promo_title, promo_text, promo_url, "
+        "promo_expires, is_active, created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
+        (name, tagline, url, slug, town, lat, lon, radius,
+         promo_title, promo_text, promo_url, promo_expires,
+         int(time.time())),
+    )
+    db.commit()
+    flash(f"Sponsor {name} added — live now.")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/sponsors/<int:sid>/toggle", methods=["POST"])
+@login_required
+@admin_required
+def admin_sponsor_toggle(sid):
+    """Pause (hide everywhere) or resume a sponsor — e.g. stopped paying."""
+    db = get_db()
+    row = db.execute("SELECT * FROM sponsors WHERE id = ?",
+                     (sid,)).fetchone()
+    if row:
+        db.execute("UPDATE sponsors SET is_active = ? WHERE id = ?",
+                   (0 if row["is_active"] else 1, sid))
+        db.commit()
+        flash(("Paused " if row["is_active"] else "Resumed ")
+              + row["name"] + ".")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/sponsors/<int:sid>/delete", methods=["POST"])
+@login_required
+@admin_required
+def admin_sponsor_delete(sid):
+    """Delete a sponsor — e.g. they asked to be removed."""
+    db = get_db()
+    row = db.execute("SELECT * FROM sponsors WHERE id = ?",
+                     (sid,)).fetchone()
+    if row:
+        db.execute("DELETE FROM sponsors WHERE id = ?", (sid,))
+        db.commit()
+        flash("Deleted sponsor " + row["name"] + ".")
     return redirect(url_for("admin_panel"))
 
 
@@ -1440,7 +1598,8 @@ def dashboard():
         cat_unread=cat_unread,
         stories=stories, rel_time=rel_time, page=page, total_pages=total_pages,
         page_url=page_url,
-        sponsor_promos=live_sponsor_promos(settings.get("town_name")),
+        sponsor_promos=(live_sponsor_promos_for_user(settings)
+                        if active_cat == "Business" else []),
         unread_on_url=chip_url(category=active_cat or None, unread=True),
         unread_off_url=chip_url(category=active_cat or None, unread=False),
     )
@@ -1708,8 +1867,7 @@ def places_page():
     places = db.execute(
         "SELECT * FROM places WHERE user_id = ? ORDER BY name",
         (user["id"],)).fetchall()
-    sponsors = load_sponsors().get(
-        town_slug_for(settings.get("town_name")), []) or []
+    sponsors = get_sponsors_for_user(settings)
     return render_template("places.html", user=user, settings=settings,
                            places=places, sponsors=sponsors)
 
@@ -2001,7 +2159,7 @@ def town_page(slug):
     town = TOWNS.get(slug)
     if not town:
         return render_template("404.html"), 404
-    sponsors = load_sponsors().get(slug, []) or []
+    sponsors = get_sponsors_for_town(slug)
     return render_template("town.html", town=town, sponsors=sponsors)
 
 

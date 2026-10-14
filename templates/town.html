@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block title %}{{ town.name }} News — Local News in One Inbox | TownsLine{% endblock %}
-{% block meta_description %}Never miss what matters in {{ town.name }}{% if town.region %}, {{ town.region }}{% endif %}. TownsLine automatically scans {{ town.feeds|length }} local news sources around the clock and serves them categorized in one clean inbox — no ads, no algorithms. Free to start.{% endblock %}
+{% block meta_description %}Never miss what matters in {{ town.name }}{% if town.region %}, {{ town.region }}{% endif %}. TownsLine automatically scans {{ town.feeds|length }} local news sources around the clock and serves them categorized in one clean inbox — no tracking ads, no algorithms. Free to start.{% endblock %}
 {% block content %}
 <div class="town-hero">
   <h1>{{ town.name }} News,<br>in one inbox.</h1>
   <p class="town-sub">TownsLine scans {{ town.name }}'s local news sources around the clock —
   {% if town.region %}{{ town.region }}, {% endif %}{{ town.country }} — and serves every story
-  categorized in one clean inbox. No ads. No algorithms. No noise.</p>
+  categorized in one clean inbox. No tracking ads. No algorithms. No noise.</p>
   <div class="town-cta">
     <a class="btn" href="{{ url_for('register') }}">Create free account</a>
     <a class="btn ghost" href="{{ url_for('login') }}">Log in</a>

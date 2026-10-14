@@ -31,16 +31,23 @@
   </form>
 </div>
 
-<h2>Suggested places for <span id="place-town">{{ settings.get('town_name') or 'your town' }}</span></h2>
+<div class="suggest-head">
+  <h2>Suggested places for <span id="place-town">{{ settings.get('town_name') or 'your town' }}</span></h2>
+  <button type="button" id="place-rethink" class="btn ghost small" title="Scan again from scratch, ignoring the cached results">↻ Rethink</button>
+</div>
 <p class="muted small" id="place-status">Scanning for local places…</p>
 <ul class="feedlist" id="place-list"></ul>
 
 <script>
-(async () => {
-  const box = document.getElementById('place-list');
-  const status = document.getElementById('place-status');
+const box = document.getElementById('place-list');
+const status = document.getElementById('place-status');
+const rethinkBtn = document.getElementById('place-rethink');
+async function loadSuggestions(refresh) {
+  box.innerHTML = '';
+  status.textContent = refresh ? 'Re-scanning for local places…' : 'Scanning for local places…';
   try {
-    const r = await fetch('{{ url_for("api_places_suggestions") }}');
+    const url = '{{ url_for("api_places_suggestions") }}' + (refresh ? '?refresh=1' : '');
+    const r = await fetch(url);
     const data = await r.json();
     const items = data.suggestions || [];
     const townEl = document.getElementById('place-town');
@@ -104,6 +111,12 @@
   } catch (e) {
     status.textContent = 'Could not scan for places right now — try again later.';
   }
-})();
+}
+rethinkBtn.addEventListener('click', async () => {
+  rethinkBtn.disabled = true;
+  await loadSuggestions(true);
+  rethinkBtn.disabled = false;
+});
+loadSuggestions(false);
 </script>
 {% endblock %}

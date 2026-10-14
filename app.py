@@ -18,7 +18,7 @@ import threading
 import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from html.parser import HTMLParser
 
 import feedparser
@@ -112,7 +112,29 @@ def town_slug_for(town_name):
     return re.sub(r"[^a-z0-9]+", "-", name).strip("-")
 
 
-def haversine_km(lat1, lon1, lat2, lon2):
+def add_months(d, months):
+    """Calendar-month arithmetic (Jan 31 + 1 month = Feb 28)."""
+    month = d.month - 1 + months
+    year = d.year + month // 12
+    month = month % 12 + 1
+    day = min(d.day, [31, 29 if year % 4 == 0 and (year % 100 != 0
+             or year % 400 == 0) else 28, 31, 30, 31, 30,
+             31, 31, 30, 31, 30, 31][month - 1])
+    return d.replace(year=year, month=month, day=day)
+
+
+NEWS_MONTHLY_LIMIT = 10  # news items a sponsor may post per billing period
+
+
+def news_used_this_period(sponsor_id):
+    """News items posted in the sponsor's current billing period."""
+    db = get_db()
+    row = db.execute("SELECT news_period_start FROM sponsors WHERE id = ?",
+                     (sponsor_id,)).fetchone()
+    start = row["news_period_start"] if row else 0
+    return db.execute(
+        "SELECT COUNT(*) c FROM sponsor_news WHERE sponsor_id = ? "
+        "AND created_at >= ?", (sponsor_id, start or 0)).fetchone()["c"]
     """Great-circle distance in km between two lat/lon points."""
     r = math.radians
     dlat = r(lat2 - lat1)
@@ -193,6 +215,38 @@ def get_sponsor_by_code(code):
     row = db.execute("SELECT * FROM sponsors WHERE code = ?",
                      (code,)).fetchone()
     return dict(row) if row else None
+
+
+def _news_quota_left(sponsor_id):
+    """News items the sponsor may still post this period (0 = at limit)."""
+    return max(0, NEWS_MONTHLY_LIMIT - news_used_this_period(sponsor_id))
+
+
+def send_sponsor_welcome(sponsor):
+    """Welcome email for a new sponsor: their personal news-portal link,
+    what the listing includes, and the renewal date. Admin in BCC.
+    Returns True when the email went out."""
+    portal = SITE_URL.rstrip("/") + "/s/" + sponsor["code"]
+    period = sponsor.get("billing_period") or 1
+    period_word = {1: "month", 3: "3 months", 6: "6 months",
+                   12: "1 year"}.get(period, f"{period} months")
+    body = (
+        f"Hi {sponsor['name']},\n\n"
+        f"Welcome to TownsLine! Your featured listing is live.\n\n"
+        f"Your business is now featured on your town's page, in the "
+        f"Places tab, and your news appears in the Business tile for "
+        f"readers in {sponsor.get('town_name') or 'your town'} and nearby.\n\n"
+        f"Manage your own news here (keep this link private — anyone "
+        f"with it can post news as your business):\n{portal}\n\n"
+        f"You can post up to {NEWS_MONTHLY_LIMIT} news items per "
+        f"{period_word} billing period.\n\n"
+        f"Your listing renews on {sponsor.get('renews_on') or '—'}. "
+        f"We'll remind you 3 days before.\n\n"
+        f"Questions? Just reply to this email.\n\n— TownsLine"
+    )
+    return send_email(sponsor["email"],
+                      "Your TownsLine listing is live — manage your news here",
+                      body, bcc=ADMIN_EMAIL)
 
 
 def send_renewal_notices():
@@ -401,7 +455,17 @@ def init_db():
                      promo.get("text", ""), promo.get("url", ""),
                      promo.get("expires", ""), int(time.time())),
                 )
-    # Sponsor columns added after the table first shipped: email (required
+    # Sponsor billing: payment period in months, start of the current
+    # news-quota period (unix), and the last date marked paid.
+    for ddl in (
+        "ALTER TABLE sponsors ADD COLUMN billing_period INTEGER DEFAULT 1",
+        "ALTER TABLE sponsors ADD COLUMN news_period_start INTEGER DEFAULT 0",
+        "ALTER TABLE sponsors ADD COLUMN last_paid_on TEXT DEFAULT ''",
+    ):
+        try:
+            db.execute(ddl)
+        except sqlite3.OperationalError:
+            pass  # column already there
     # for renewal notices + the self-service portal), a unique portal code,
     # the date the listing went active, the renewal date, and which renewal
     # date the reminder was already sent for (so it only goes out once).
@@ -436,6 +500,13 @@ def init_db():
                 "UPDATE sponsors SET active_since = ?, renews_on = ? "
                 "WHERE id = ?",
                 (since.isoformat(), renews.isoformat(), r["id"]))
+        # Billing defaults for pre-existing sponsors: monthly period,
+        # news quota counted from the day the listing went active.
+        db.execute(
+            "UPDATE sponsors SET billing_period = COALESCE(NULLIF("
+            "billing_period, 0), 1), news_period_start = COALESCE(NULLIF("
+            "news_period_start, 0), ?) WHERE id = ?",
+            (r["created_at"], r["id"]))
     # One-time migration: the old single promo per sponsor becomes a
     # sponsor_news row, so the Business tile reads one source.
     for s in db.execute(
@@ -1567,7 +1638,10 @@ def admin_sponsor_detail(sid):
     portal_url = SITE_URL.rstrip("/") + "/s/" + row["code"]
     return render_template("admin_sponsor_detail.html",
                            sponsor=dict(row), news=news,
-                           portal_url=portal_url, user=current_user())
+                           portal_url=portal_url,
+                           news_used=news_used_this_period(sid),
+                           news_limit=NEWS_MONTHLY_LIMIT,
+                           user=current_user())
 
 
 def _sponsor_coords(town, slug):
@@ -1608,6 +1682,12 @@ def admin_sponsor_add():
     if not email or not valid_email(email):
         flash("A valid sponsor email is required.")
         return redirect(url_for("admin_sponsors"))
+    try:
+        billing_period = int(request.form.get("billing_period", "1") or 1)
+    except ValueError:
+        billing_period = 1
+    if billing_period not in (1, 3, 6, 12):
+        billing_period = 1
     slug = town_slug_for(town)
     lat, lon = _sponsor_coords(town, slug)
     today = datetime.now(timezone.utc).date()
@@ -1616,13 +1696,20 @@ def admin_sponsor_add():
     cur = db.execute(
         "INSERT INTO sponsors (name, tagline, url, town_slug, town_name, "
         "lat, lon, radius_km, email, code, active_since, renews_on, "
-        "is_active, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
+        "billing_period, news_period_start, last_paid_on, "
+        "is_active, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
         (name, tagline, url, slug, town, lat, lon, radius, email, code,
-         today.isoformat(), (today + timedelta(days=30)).isoformat(),
+         today.isoformat(),
+         add_months(today, billing_period).isoformat(),
+         billing_period, int(time.time()), today.isoformat(),
          int(time.time())),
     )
     db.commit()
-    flash(f"Sponsor {name} added — live now.")
+    sponsor = dict(db.execute("SELECT * FROM sponsors WHERE id = ?",
+                              (cur.lastrowid,)).fetchone())
+    emailed = send_sponsor_welcome(sponsor)
+    flash(f"Sponsor {name} added — live now."
+          + ("" if emailed else " (welcome email could not be sent)"))
     return redirect(url_for("admin_sponsor_detail", sid=cur.lastrowid))
 
 
@@ -1649,6 +1736,12 @@ def admin_sponsor_edit(sid):
         radius = float(request.form.get("radius_km", "30") or 30)
     except ValueError:
         radius = 30.0
+    try:
+        billing_period = int(request.form.get("billing_period", "1") or 1)
+    except ValueError:
+        billing_period = 1
+    if billing_period not in (1, 3, 6, 12):
+        billing_period = 1
     if not name or not url or not town:
         flash("Name, website and town are required.")
         return redirect(url_for("admin_sponsor_detail", sid=sid))
@@ -1663,12 +1756,44 @@ def admin_sponsor_edit(sid):
     db.execute(
         "UPDATE sponsors SET name = ?, tagline = ?, url = ?, "
         "town_slug = ?, town_name = ?, lat = ?, lon = ?, radius_km = ?, "
-        "email = ?, active_since = ?, renews_on = ? WHERE id = ?",
+        "email = ?, active_since = ?, renews_on = ?, billing_period = ? "
+        "WHERE id = ?",
         (name, tagline, url, slug, town, lat, lon, radius, email,
-         active_since, renews_on, sid),
+         active_since, renews_on, billing_period, sid),
     )
     db.commit()
     flash(f"Sponsor {name} updated.")
+    return redirect(url_for("admin_sponsor_detail", sid=sid))
+
+
+@app.route("/admin/sponsors/<int:sid>/mark_paid", methods=["POST"])
+@login_required
+@admin_required
+def admin_sponsor_mark_paid(sid):
+    """Record that the business paid for its next period: the renewal
+    date moves forward by the billing period and the news allowance
+    (10 per period) resets."""
+    db = get_db()
+    row = db.execute("SELECT * FROM sponsors WHERE id = ?",
+                     (sid,)).fetchone()
+    if not row:
+        flash("Sponsor not found.")
+        return redirect(url_for("admin_sponsors"))
+    period = row["billing_period"] or 1
+    today = datetime.now(timezone.utc).date()
+    try:
+        base = date.fromisoformat(row["renews_on"] or "")
+    except ValueError:
+        base = today
+    new_renews = add_months(max(base, today), period)
+    db.execute(
+        "UPDATE sponsors SET renews_on = ?, news_period_start = ?, "
+        "last_paid_on = ?, notice_sent_for = '' WHERE id = ?",
+        (new_renews.isoformat(), int(time.time()), today.isoformat(), sid),
+    )
+    db.commit()
+    flash(f"Marked paid — {row['name']} renews on {new_renews.isoformat()}, "
+          f"news allowance reset (0/{NEWS_MONTHLY_LIMIT}).")
     return redirect(url_for("admin_sponsor_detail", sid=sid))
 
 
@@ -1742,6 +1867,10 @@ def admin_sponsor_news_add(sid):
     expires = request.form.get("expires", "").strip()
     if not title:
         flash("News headline is required.")
+        return redirect(url_for("admin_sponsor_detail", sid=sid))
+    if _news_quota_left(sid) <= 0:
+        flash(f"News limit reached ({NEWS_MONTHLY_LIMIT} per billing "
+              f"period). It resets when the business pays again.")
         return redirect(url_for("admin_sponsor_detail", sid=sid))
     db.execute(
         "INSERT INTO sponsor_news (sponsor_id, title, text, url, expires, "
@@ -1830,7 +1959,10 @@ def sponsor_portal(code):
         "SELECT * FROM sponsor_news WHERE sponsor_id = ? "
         "ORDER BY created_at DESC", (sponsor["id"],)).fetchall()]
     return render_template("sponsor_portal.html", sponsor=sponsor,
-                           news=news, user=current_user())
+                           news=news,
+                           news_used=news_used_this_period(sponsor["id"]),
+                           news_limit=NEWS_MONTHLY_LIMIT,
+                           user=current_user())
 
 
 @app.route("/s/<code>/news/add", methods=["POST"])
@@ -1845,6 +1977,11 @@ def sponsor_portal_news_add(code):
     expires = request.form.get("expires", "").strip()
     if not title:
         flash("News headline is required.")
+        return redirect(url_for("sponsor_portal", code=code))
+    if _news_quota_left(sponsor["id"]) <= 0:
+        flash(f"News limit reached ({NEWS_MONTHLY_LIMIT} per billing "
+              f"period). It resets when your next payment goes through — "
+              f"or contact us if you need more.")
         return redirect(url_for("sponsor_portal", code=code))
     db = get_db()
     db.execute(

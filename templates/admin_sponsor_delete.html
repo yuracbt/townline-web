@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Delete {{ sponsor['name'] }} — TownsLine{% endblock %}
+{% block content %}
+<h1>Delete {{ sponsor['name'] }}</h1>
+{% if not show_reason %}
+<p>This cannot be undone. The listing and all its news will be removed.</p>
+<p>
+  <a class="btn ghost danger" href="{{ url_for('admin_sponsor_delete', sid=sponsor['id']) }}?reason=1">Yes, delete</a>
+  <a class="btn ghost" href="{{ url_for('admin_sponsor_detail', sid=sponsor['id']) }}">Cancel</a>
+</p>
+{% else %}
+<p>Why is this listing being deleted? The business gets an email with this reason.</p>
+<form method="post" action="{{ url_for('admin_sponsor_delete', sid=sponsor['id']) }}">
+  <label>Reason <input name="reason" placeholder="e.g. Business asked to be removed" required></label>
+  <button type="submit" class="btn ghost danger">Confirm delete</button>
+  <a class="btn ghost" href="{{ url_for('admin_sponsor_detail', sid=sponsor['id']) }}">Cancel</a>
+</form>
+{% endif %}
+{% endblock %}

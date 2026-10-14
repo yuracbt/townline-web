@@ -62,7 +62,7 @@
 <div class="card sponsor-promo" data-promo-key="{{ sp.key }}">
   <button type="button" class="sponsor-dismiss" title="Hide this post">×</button>
   <div class="sponsor-promo-head">
-    <span class="sponsor-badge">Sponsored</span>
+    <span class="sponsor-badge">Sponsored{% if sp.example %} · Example{% endif %}</span>
     <strong><a href="{{ sp.url }}" target="_blank" rel="noopener">{{ sp.name }}</a></strong>
     <span class="muted small">— a local business</span>
   </div>

@@ -62,7 +62,11 @@ document.querySelectorAll('.expandcell').forEach(function(cell){
   });
 });
 document.querySelectorAll('tr[data-href]').forEach(function(row){
-  row.addEventListener('click', function(){
+  row.addEventListener('click', function(e){
+    // Clicks on links/buttons/forms inside the row (e.g. Mark paid,
+    // Pause, Delete) do their own thing — only a click on the plain
+    // row itself opens the edit page.
+    if (e.target.closest('a, button, form')) return;
     window.location.href = row.dataset.href;
   });
 });
@@ -82,7 +86,21 @@ document.querySelectorAll('tr[data-href]').forEach(function(row){
         <td>{{ s['renews_on'] or '—' }}</td>
         <td>{{ s['news_count'] }}</td>
         <td>{% if s['is_active'] %}<span class="status-pill ok">Active</span>{% else %}<span class="status-pill bad">Paused</span>{% endif %}</td>
-        <td><a href="{{ url_for('admin_sponsor_detail', sid=s['id']) }}">Edit</a></td>
+        <td>
+          <form method="post" action="{{ url_for('admin_sponsor_mark_paid', sid=s['id']) }}" style="display:inline"
+                onsubmit="return confirm('Mark {{ s['name'] }} as paid? Renewal moves forward one billing period and the news allowance resets.')">
+            <button type="submit" class="linklike">Mark paid</button>
+          </form>
+          |
+          <form method="post" action="{{ url_for('admin_sponsor_toggle', sid=s['id']) }}" style="display:inline">
+            <button type="submit" class="linklike">{% if s['is_active'] %}Pause{% else %}Resume{% endif %}</button>
+          </form>
+          |
+          <form method="post" action="{{ url_for('admin_sponsor_delete', sid=s['id']) }}" style="display:inline"
+                onsubmit="return confirm('Delete sponsor {{ s['name'] }}? This cannot be undone.')">
+            <button type="submit" class="linklike danger">Delete</button>
+          </form>
+        </td>
       </tr>
     {% endfor %}
     </tbody>

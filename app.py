@@ -18,7 +18,7 @@ import threading
 import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 
 import feedparser
@@ -153,24 +153,98 @@ def get_sponsors_for_user(settings):
 
 
 def live_sponsor_promos_for_user(settings):
-    """Live (unexpired) promos among the user's sponsors."""
+    """Live sponsor news for the user's sponsors, as Sponsored cards.
+
+    A sponsor can have several news items (added by the admin or by the
+    sponsor through their own portal link); each live one — active and
+    unexpired — becomes one card on the Business tile.
+    """
+    db = get_db()
+    user_slug = town_slug_for(settings.get("town_name"))
+    ulat, ulon = settings.get("lat"), settings.get("lon")
     today = datetime.now(timezone.utc).date().isoformat()
     out = []
-    for s in get_sponsors_for_user(settings):
-        title = (s.get("promo_title") or "").strip()
-        if not title:
+    for s in db.execute(
+            "SELECT * FROM sponsors WHERE is_active = 1 ORDER BY name"
+    ).fetchall():
+        in_reach = s["town_slug"] == user_slug
+        if (not in_reach and ulat and ulon and s["lat"] and s["lon"]
+                and s["radius_km"]
+                and haversine_km(ulat, ulon, s["lat"], s["lon"])
+                <= s["radius_km"]):
+            in_reach = True
+        if not in_reach:
             continue
-        expires = (s.get("promo_expires") or "").strip()
-        if expires and expires < today:
-            continue
-        out.append({
-            "name": s.get("name", ""),
-            "url": s.get("url", ""),
-            "key": f"{s.get('town_slug', '')}|{s.get('name', '')}|{title}",
-            "promo": {"title": title, "text": s.get("promo_text") or "",
-                      "url": s.get("promo_url") or s.get("url") or ""},
-        })
+        for n in db.execute(
+                "SELECT * FROM sponsor_news WHERE sponsor_id = ? "
+                "AND is_active = 1 ORDER BY created_at",
+                (s["id"],)).fetchall():
+            expires = (n["expires"] or "").strip()
+            if expires and expires < today:
+                continue
+            out.append({
+                "name": s["name"],
+                "url": s["url"],
+                "key": f"news:{n['id']}",
+                "promo": {"title": n["title"], "text": n["text"] or "",
+                          "url": n["url"] or s["url"]},
+            })
     return out
+
+
+def get_sponsor_by_code(code):
+    """Sponsor for a self-service portal code, or None (404)."""
+    if not code:
+        return None
+    db = get_db()
+    row = db.execute("SELECT * FROM sponsors WHERE code = ?",
+                     (code,)).fetchone()
+    return dict(row) if row else None
+
+
+def send_renewal_notices():
+    """Email sponsors 3 days before their listing renews (admin in BCC).
+
+    Idempotent: notice_sent_for records which renews_on date the notice
+    went out for, so a restart or repeat run never double-sends.
+    """
+    db = get_db()
+    target = (datetime.now(timezone.utc).date()
+              + timedelta(days=3)).isoformat()
+    for s in db.execute(
+            "SELECT * FROM sponsors WHERE is_active = 1 AND email != '' "
+            "AND renews_on = ? AND notice_sent_for != renews_on",
+            (target,)).fetchall():
+        portal = SITE_URL.rstrip("/") + "/s/" + s["code"]
+        body = (
+            f"Hi {s['name']},\n\n"
+            f"Your TownsLine featured listing renews on {s['renews_on']} "
+            f"— 3 days from now.\n\n"
+            f"Your listing stays live: featured on your town's page, in "
+            f"the Places tab, and your news on the Business tile.\n\n"
+            f"Want to update your news before then? Manage it here:\n"
+            f"{portal}\n\n"
+            f"To stop the listing, just reply to this email.\n\n"
+            f"— TownsLine"
+        )
+        if send_email(s["email"],
+                      "Your TownsLine listing renews in 3 days",
+                      body, bcc=ADMIN_EMAIL):
+            db.execute("UPDATE sponsors SET notice_sent_for = renews_on "
+                       "WHERE id = ?", (s["id"],))
+    db.commit()
+
+
+def renewal_loop():
+    """Daemon: check renewal notices hourly (send_renewal_notices is
+    idempotent, so repeats and restarts are harmless)."""
+    while True:
+        try:
+            with app.app_context():
+                send_renewal_notices()
+        except Exception as e:  # noqa: BLE001 - background job never dies
+            app.logger.warning("renewal notices failed: %s", e)
+        time.sleep(3600)
 
 # ---------------------------------------------------------------- db
 
@@ -268,6 +342,17 @@ def init_db():
             is_active INTEGER DEFAULT 1,
             created_at INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS sponsor_news (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sponsor_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            text TEXT DEFAULT '',
+            url TEXT DEFAULT '',
+            expires TEXT DEFAULT '',
+            is_active INTEGER DEFAULT 1,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY(sponsor_id) REFERENCES sponsors(id) ON DELETE CASCADE
+        );
         """
     )
     # Migrations for databases created before these columns existed.
@@ -323,6 +408,54 @@ def init_db():
                      promo.get("text", ""), promo.get("url", ""),
                      promo.get("expires", ""), int(time.time())),
                 )
+    # Sponsor columns added after the table first shipped: email (required
+    # for renewal notices + the self-service portal), a unique portal code,
+    # the date the listing went active, the renewal date, and which renewal
+    # date the reminder was already sent for (so it only goes out once).
+    for ddl in (
+        "ALTER TABLE sponsors ADD COLUMN email TEXT DEFAULT ''",
+        "ALTER TABLE sponsors ADD COLUMN code TEXT DEFAULT ''",
+        "ALTER TABLE sponsors ADD COLUMN active_since TEXT DEFAULT ''",
+        "ALTER TABLE sponsors ADD COLUMN renews_on TEXT DEFAULT ''",
+        "ALTER TABLE sponsors ADD COLUMN notice_sent_for TEXT DEFAULT ''",
+    ):
+        try:
+            db.execute(ddl)
+        except sqlite3.OperationalError:
+            pass  # column already there
+    # Backfill: portal codes, active-since / renews dates (monthly billing).
+    for r in db.execute(
+            "SELECT id, code, created_at, active_since FROM sponsors"
+    ).fetchall():
+        if not r["code"]:
+            while True:
+                code = secrets.token_urlsafe(12)
+                if not db.execute("SELECT 1 FROM sponsors WHERE code = ?",
+                                  (code,)).fetchone():
+                    break
+            db.execute("UPDATE sponsors SET code = ? WHERE id = ?",
+                       (code, r["id"]))
+        if not r["active_since"]:
+            since = datetime.fromtimestamp(
+                r["created_at"], tz=timezone.utc).date()
+            renews = since + timedelta(days=30)
+            db.execute(
+                "UPDATE sponsors SET active_since = ?, renews_on = ? "
+                "WHERE id = ?",
+                (since.isoformat(), renews.isoformat(), r["id"]))
+    # One-time migration: the old single promo per sponsor becomes a
+    # sponsor_news row, so the Business tile reads one source.
+    for s in db.execute(
+            "SELECT * FROM sponsors WHERE promo_title != ''").fetchall():
+        if not db.execute("SELECT 1 FROM sponsor_news WHERE sponsor_id = ?",
+                          (s["id"],)).fetchone():
+            db.execute(
+                "INSERT INTO sponsor_news (sponsor_id, title, text, url, "
+                "expires, is_active, created_at) VALUES (?,?,?,?,?,1,?)",
+                (s["id"], s["promo_title"], s["promo_text"],
+                 s["promo_url"], s["promo_expires"],
+                 int(time.time())),
+            )
     db.commit()
     db.close()
 
@@ -375,13 +508,15 @@ SMTP_PORT = int(os.environ.get("SMTP_PORT", "587") or 587)
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 SMTP_FROM = os.environ.get("SMTP_FROM", "")
+# Public base URL, used for links inside emails (renewal notices).
+SITE_URL = os.environ.get("SITE_URL", "https://townsline.com")
 
 
 def email_configured():
     return bool(SMTP_HOST and SMTP_FROM)
 
 
-def send_email(to_addr, subject, body):
+def send_email(to_addr, subject, body, bcc=None):
     """Send a plain-text email via the configured SMTP relay.
     Returns True on success, False when unconfigured or on failure."""
     if not email_configured():
@@ -392,6 +527,8 @@ def send_email(to_addr, subject, body):
     msg["Subject"] = subject
     msg["From"] = SMTP_FROM
     msg["To"] = to_addr
+    if bcc:
+        msg["Bcc"] = bcc
     msg.set_content(body)
     try:
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
@@ -1304,7 +1441,9 @@ def admin_panel():
             f["created_at"], tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
         feedback_rows.append(d)
     sponsor_rows = [dict(r) for r in db.execute(
-        "SELECT * FROM sponsors ORDER BY is_active DESC, name").fetchall()]
+        "SELECT s.*, (SELECT COUNT(*) FROM sponsor_news n "
+        "WHERE n.sponsor_id = s.id AND n.is_active = 1) AS news_count "
+        "FROM sponsors s ORDER BY s.is_active DESC, s.name").fetchall()]
     return render_template("admin.html", users=user_rows, tokens=token_rows,
                            feedback=feedback_rows, sponsors=sponsor_rows,
                            admin_username=ADMIN_USERNAME,
@@ -1404,56 +1543,140 @@ def admin_delete():
     return redirect(url_for("admin_panel"))
 
 
+@app.route("/admin/sponsors")
+@login_required
+@admin_required
+def admin_sponsors():
+    """Sponsors sub-page: full list + Add sponsor form."""
+    db = get_db()
+    sponsors = [dict(r) for r in db.execute(
+        "SELECT s.*, (SELECT COUNT(*) FROM sponsor_news n "
+        "WHERE n.sponsor_id = s.id AND n.is_active = 1) AS news_count "
+        "FROM sponsors s ORDER BY s.is_active DESC, s.name").fetchall()]
+    return render_template("admin_sponsors.html", sponsors=sponsors,
+                           user=current_user())
+
+
+@app.route("/admin/sponsors/<int:sid>")
+@login_required
+@admin_required
+def admin_sponsor_detail(sid):
+    """One sponsor: edit fields, portal link, and manage its news."""
+    db = get_db()
+    row = db.execute("SELECT * FROM sponsors WHERE id = ?",
+                     (sid,)).fetchone()
+    if not row:
+        flash("Sponsor not found.")
+        return redirect(url_for("admin_sponsors"))
+    news = [dict(r) for r in db.execute(
+        "SELECT * FROM sponsor_news WHERE sponsor_id = ? "
+        "ORDER BY created_at DESC", (sid,)).fetchall()]
+    portal_url = SITE_URL.rstrip("/") + "/s/" + row["code"]
+    return render_template("admin_sponsor_detail.html",
+                           sponsor=dict(row), news=news,
+                           portal_url=portal_url, user=current_user())
+
+
+def _sponsor_coords(town, slug):
+    """lat/lon for a sponsor town: directory first, else geocode."""
+    if slug in TOWNS:
+        return TOWNS[slug].get("lat"), TOWNS[slug].get("lon")
+    try:
+        r = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": town, "format": "json", "limit": 1},
+            headers={"User-Agent": UA}, timeout=10)
+        item = (r.json() or [None])[0]
+        if item:
+            return float(item["lat"]), float(item["lon"])
+    except Exception:
+        pass
+    return None, None
+
+
 @app.route("/admin/sponsors/add", methods=["POST"])
 @login_required
 @admin_required
 def admin_sponsor_add():
-    """Add a sponsor from the Admin page — live immediately, no deploy."""
+    """Add a sponsor — live immediately, no deploy. Email is required:
+    renewal notices and the self-service portal link go there."""
     name = request.form.get("name", "").strip()
     tagline = request.form.get("tagline", "").strip()
     url = request.form.get("url", "").strip()
     town = request.form.get("town", "").strip()
+    email = request.form.get("email", "").strip()
     try:
         radius = float(request.form.get("radius_km", "30") or 30)
     except ValueError:
         radius = 30.0
-    promo_title = request.form.get("promo_title", "").strip()
-    promo_text = request.form.get("promo_text", "").strip()
-    promo_url = request.form.get("promo_url", "").strip()
-    promo_expires = request.form.get("promo_expires", "").strip()
     if not name or not url or not town:
         flash("Name, website and town are required.")
-        return redirect(url_for("admin_panel"))
+        return redirect(url_for("admin_sponsors"))
+    if not email or not valid_email(email):
+        flash("A valid sponsor email is required.")
+        return redirect(url_for("admin_sponsors"))
     slug = town_slug_for(town)
-    # Coordinates for nearby matching: prefer the town directory, else
-    # geocode the town name via Nominatim (same source as Settings).
-    lat = lon = None
-    if slug in TOWNS:
-        lat, lon = TOWNS[slug].get("lat"), TOWNS[slug].get("lon")
-    if lat is None:
-        try:
-            r = requests.get(
-                "https://nominatim.openstreetmap.org/search",
-                params={"q": town, "format": "json", "limit": 1},
-                headers={"User-Agent": UA}, timeout=10)
-            item = (r.json() or [None])[0]
-            if item:
-                lat, lon = float(item["lat"]), float(item["lon"])
-        except Exception:
-            pass
+    lat, lon = _sponsor_coords(town, slug)
+    today = datetime.now(timezone.utc).date()
+    code = secrets.token_urlsafe(12)
     db = get_db()
-    db.execute(
+    cur = db.execute(
         "INSERT INTO sponsors (name, tagline, url, town_slug, town_name, "
-        "lat, lon, radius_km, promo_title, promo_text, promo_url, "
-        "promo_expires, is_active, created_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
-        (name, tagline, url, slug, town, lat, lon, radius,
-         promo_title, promo_text, promo_url, promo_expires,
+        "lat, lon, radius_km, email, code, active_since, renews_on, "
+        "is_active, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
+        (name, tagline, url, slug, town, lat, lon, radius, email, code,
+         today.isoformat(), (today + timedelta(days=30)).isoformat(),
          int(time.time())),
     )
     db.commit()
     flash(f"Sponsor {name} added — live now.")
-    return redirect(url_for("admin_panel"))
+    return redirect(url_for("admin_sponsor_detail", sid=cur.lastrowid))
+
+
+@app.route("/admin/sponsors/<int:sid>/edit", methods=["POST"])
+@login_required
+@admin_required
+def admin_sponsor_edit(sid):
+    """Edit a sponsor's fields (name, tagline, URL, town, reach, email,
+    active-since and renewal dates)."""
+    db = get_db()
+    row = db.execute("SELECT * FROM sponsors WHERE id = ?",
+                     (sid,)).fetchone()
+    if not row:
+        flash("Sponsor not found.")
+        return redirect(url_for("admin_sponsors"))
+    name = request.form.get("name", "").strip()
+    tagline = request.form.get("tagline", "").strip()
+    url = request.form.get("url", "").strip()
+    town = request.form.get("town", "").strip()
+    email = request.form.get("email", "").strip()
+    active_since = request.form.get("active_since", "").strip()
+    renews_on = request.form.get("renews_on", "").strip()
+    try:
+        radius = float(request.form.get("radius_km", "30") or 30)
+    except ValueError:
+        radius = 30.0
+    if not name or not url or not town:
+        flash("Name, website and town are required.")
+        return redirect(url_for("admin_sponsor_detail", sid=sid))
+    if not email or not valid_email(email):
+        flash("A valid sponsor email is required.")
+        return redirect(url_for("admin_sponsor_detail", sid=sid))
+    slug = town_slug_for(town)
+    if slug != row["town_slug"]:
+        lat, lon = _sponsor_coords(town, slug)
+    else:
+        lat, lon = row["lat"], row["lon"]
+    db.execute(
+        "UPDATE sponsors SET name = ?, tagline = ?, url = ?, "
+        "town_slug = ?, town_name = ?, lat = ?, lon = ?, radius_km = ?, "
+        "email = ?, active_since = ?, renews_on = ? WHERE id = ?",
+        (name, tagline, url, slug, town, lat, lon, radius, email,
+         active_since, renews_on, sid),
+    )
+    db.commit()
+    flash(f"Sponsor {name} updated.")
+    return redirect(url_for("admin_sponsor_detail", sid=sid))
 
 
 @app.route("/admin/sponsors/<int:sid>/toggle", methods=["POST"])
@@ -1470,7 +1693,7 @@ def admin_sponsor_toggle(sid):
         db.commit()
         flash(("Paused " if row["is_active"] else "Resumed ")
               + row["name"] + ".")
-    return redirect(url_for("admin_panel"))
+    return redirect(url_for("admin_sponsors"))
 
 
 @app.route("/admin/sponsors/<int:sid>/delete", methods=["POST"])
@@ -1482,10 +1705,203 @@ def admin_sponsor_delete(sid):
     row = db.execute("SELECT * FROM sponsors WHERE id = ?",
                      (sid,)).fetchone()
     if row:
+        db.execute("DELETE FROM sponsor_news WHERE sponsor_id = ?", (sid,))
         db.execute("DELETE FROM sponsors WHERE id = ?", (sid,))
         db.commit()
         flash("Deleted sponsor " + row["name"] + ".")
-    return redirect(url_for("admin_panel"))
+    return redirect(url_for("admin_sponsors"))
+
+
+@app.route("/admin/sponsors/<int:sid>/regenerate", methods=["POST"])
+@login_required
+@admin_required
+def admin_sponsor_regenerate(sid):
+    """Issue a fresh portal code (invalidates the old portal link)."""
+    db = get_db()
+    row = db.execute("SELECT * FROM sponsors WHERE id = ?",
+                     (sid,)).fetchone()
+    if row:
+        while True:
+            code = secrets.token_urlsafe(12)
+            if not db.execute("SELECT 1 FROM sponsors WHERE code = ?",
+                              (code,)).fetchone():
+                break
+        db.execute("UPDATE sponsors SET code = ? WHERE id = ?",
+                   (code, sid))
+        db.commit()
+        flash("New portal link issued — the old one no longer works.")
+    return redirect(url_for("admin_sponsor_detail", sid=sid))
+
+
+@app.route("/admin/sponsors/<int:sid>/news/add", methods=["POST"])
+@login_required
+@admin_required
+def admin_sponsor_news_add(sid):
+    """Add a news item for a sponsor — appears on the Business tile."""
+    db = get_db()
+    if not db.execute("SELECT 1 FROM sponsors WHERE id = ?",
+                      (sid,)).fetchone():
+        flash("Sponsor not found.")
+        return redirect(url_for("admin_sponsors"))
+    title = request.form.get("title", "").strip()
+    text = request.form.get("text", "").strip()
+    url = request.form.get("url", "").strip()
+    expires = request.form.get("expires", "").strip()
+    if not title:
+        flash("News headline is required.")
+        return redirect(url_for("admin_sponsor_detail", sid=sid))
+    db.execute(
+        "INSERT INTO sponsor_news (sponsor_id, title, text, url, expires, "
+        "is_active, created_at) VALUES (?,?,?,?,?,1,?)",
+        (sid, title, text, url, expires, int(time.time())),
+    )
+    db.commit()
+    flash("News added — live on the Business tile.")
+    return redirect(url_for("admin_sponsor_detail", sid=sid))
+
+
+@app.route("/admin/sponsors/news/<int:nid>/edit", methods=["POST"])
+@login_required
+@admin_required
+def admin_sponsor_news_edit(nid):
+    """Edit one news item (headline, text, link, expiry)."""
+    db = get_db()
+    row = db.execute("SELECT * FROM sponsor_news WHERE id = ?",
+                     (nid,)).fetchone()
+    if not row:
+        flash("News item not found.")
+        return redirect(url_for("admin_sponsors"))
+    title = request.form.get("title", "").strip()
+    text = request.form.get("text", "").strip()
+    url = request.form.get("url", "").strip()
+    expires = request.form.get("expires", "").strip()
+    if not title:
+        flash("News headline is required.")
+        return redirect(url_for("admin_sponsor_detail",
+                                sid=row["sponsor_id"]))
+    db.execute("UPDATE sponsor_news SET title = ?, text = ?, url = ?, "
+               "expires = ? WHERE id = ?",
+               (title, text, url, expires, nid))
+    db.commit()
+    flash("News updated.")
+    return redirect(url_for("admin_sponsor_detail", sid=row["sponsor_id"]))
+
+
+@app.route("/admin/sponsors/news/<int:nid>/toggle", methods=["POST"])
+@login_required
+@admin_required
+def admin_sponsor_news_toggle(nid):
+    """Hide / show one news item without deleting it."""
+    db = get_db()
+    row = db.execute("SELECT * FROM sponsor_news WHERE id = ?",
+                     (nid,)).fetchone()
+    if row:
+        db.execute("UPDATE sponsor_news SET is_active = ? WHERE id = ?",
+                   (0 if row["is_active"] else 1, nid))
+        db.commit()
+        flash(("Hidden " if row["is_active"] else "Shown ")
+              + row["title"] + ".")
+        return redirect(url_for("admin_sponsor_detail",
+                                sid=row["sponsor_id"]))
+    return redirect(url_for("admin_sponsors"))
+
+
+@app.route("/admin/sponsors/news/<int:nid>/delete", methods=["POST"])
+@login_required
+@admin_required
+def admin_sponsor_news_delete(nid):
+    """Delete one news item."""
+    db = get_db()
+    row = db.execute("SELECT * FROM sponsor_news WHERE id = ?",
+                     (nid,)).fetchone()
+    if row:
+        db.execute("DELETE FROM sponsor_news WHERE id = ?", (nid,))
+        db.commit()
+        flash("Deleted news: " + row["title"] + ".")
+        return redirect(url_for("admin_sponsor_detail",
+                                sid=row["sponsor_id"]))
+    return redirect(url_for("admin_sponsors"))
+
+
+# ---------------------------------------------------------------- sponsor portal
+
+@app.route("/s/<code>")
+def sponsor_portal(code):
+    """A sponsor's own page: manage their news with their unique link.
+    No login — the unguessable code in the URL is the credential."""
+    sponsor = get_sponsor_by_code(code)
+    if not sponsor:
+        return render_template("404.html"), 404
+    db = get_db()
+    news = [dict(r) for r in db.execute(
+        "SELECT * FROM sponsor_news WHERE sponsor_id = ? "
+        "ORDER BY created_at DESC", (sponsor["id"],)).fetchall()]
+    return render_template("sponsor_portal.html", sponsor=sponsor,
+                           news=news, user=current_user())
+
+
+@app.route("/s/<code>/news/add", methods=["POST"])
+def sponsor_portal_news_add(code):
+    """A sponsor adds one of their own news items."""
+    sponsor = get_sponsor_by_code(code)
+    if not sponsor:
+        return render_template("404.html"), 404
+    title = request.form.get("title", "").strip()
+    text = request.form.get("text", "").strip()
+    url = request.form.get("url", "").strip()
+    expires = request.form.get("expires", "").strip()
+    if not title:
+        flash("News headline is required.")
+        return redirect(url_for("sponsor_portal", code=code))
+    db = get_db()
+    db.execute(
+        "INSERT INTO sponsor_news (sponsor_id, title, text, url, expires, "
+        "is_active, created_at) VALUES (?,?,?,?,?,1,?)",
+        (sponsor["id"], title, text, url, expires, int(time.time())),
+    )
+    db.commit()
+    flash("News added — live on the Business tile.")
+    return redirect(url_for("sponsor_portal", code=code))
+
+
+@app.route("/s/<code>/news/<int:nid>/edit", methods=["POST"])
+def sponsor_portal_news_edit(code, nid):
+    """A sponsor edits one of their own news items."""
+    sponsor = get_sponsor_by_code(code)
+    db = get_db()
+    row = (db.execute("SELECT * FROM sponsor_news WHERE id = ? AND "
+                      "sponsor_id = ?", (nid, sponsor["id"])).fetchone()
+           if sponsor else None)
+    if not row:
+        return render_template("404.html"), 404
+    title = request.form.get("title", "").strip()
+    text = request.form.get("text", "").strip()
+    url = request.form.get("url", "").strip()
+    expires = request.form.get("expires", "").strip()
+    if not title:
+        flash("News headline is required.")
+        return redirect(url_for("sponsor_portal", code=code))
+    db.execute("UPDATE sponsor_news SET title = ?, text = ?, url = ?, "
+               "expires = ? WHERE id = ?", (title, text, url, expires, nid))
+    db.commit()
+    flash("News updated.")
+    return redirect(url_for("sponsor_portal", code=code))
+
+
+@app.route("/s/<code>/news/<int:nid>/delete", methods=["POST"])
+def sponsor_portal_news_delete(code, nid):
+    """A sponsor deletes one of their own news items."""
+    sponsor = get_sponsor_by_code(code)
+    db = get_db()
+    row = (db.execute("SELECT * FROM sponsor_news WHERE id = ? AND "
+                      "sponsor_id = ?", (nid, sponsor["id"])).fetchone()
+           if sponsor else None)
+    if not row:
+        return render_template("404.html"), 404
+    db.execute("DELETE FROM sponsor_news WHERE id = ?", (nid,))
+    db.commit()
+    flash("News deleted.")
+    return redirect(url_for("sponsor_portal", code=code))
 
 
 # ---------------------------------------------------------------- dashboard
@@ -1502,6 +1918,11 @@ def dashboard():
     cats = [r["category"] for r in db.execute(
         "SELECT DISTINCT category FROM stories WHERE user_id = ? "
         "ORDER BY category", (user["id"],)).fetchall()]
+    # Business is always a tile — sponsor news lives there even when the
+    # user has no Business-category stories yet (otherwise the tile and
+    # its Sponsored cards are unreachable: no chip to click).
+    if "Business" not in cats:
+        cats.append("Business")
     # Priority: News first, then alphabetical, Sport and Business last.
     cats = sorted(cats, key=lambda c: (0, "") if c == "News"
                   else ((2, c) if c in ("Sport", "Business") else (1, c)))
@@ -2174,6 +2595,8 @@ def start_background():
     init_db()
     t = threading.Thread(target=scanner_loop, daemon=True)
     t.start()
+    t2 = threading.Thread(target=renewal_loop, daemon=True)
+    t2.start()
 
 
 start_background()

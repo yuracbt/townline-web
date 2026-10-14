@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Sponsors — TownsLine{% endblock %}
+{% block content %}
+<h1>Sponsors</h1>
+<p><a href="{{ url_for('admin_panel') }}">← Back to Administration</a></p>
+
+<div class="card">
+  <h2>All sponsors ({{ sponsors|length }})</h2>
+  {% if sponsors %}
+  <table class="admintable">
+    <thead><tr><th>Business</th><th>Town</th><th>Email</th><th>Active since</th><th>Renews</th><th>News</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for s in sponsors %}
+      <tr{% if not s['is_active'] %} class="blocked"{% endif %}>
+        <td><strong><a href="{{ url_for('admin_sponsor_detail', sid=s['id']) }}">{{ s['name'] }}</a></strong><br><span class="muted small">{{ s['tagline'] or '—' }}</span></td>
+        <td>{{ s['town_name'] or s['town_slug'] or '—' }}</td>
+        <td>{{ s['email'] or '—' }}</td>
+        <td>{{ s['active_since'] or '—' }}</td>
+        <td>{{ s['renews_on'] or '—' }}</td>
+        <td>{{ s['news_count'] }}</td>
+        <td>{% if s['is_active'] %}Active{% else %}<span class="error">Paused</span>{% endif %}</td>
+        <td>
+          <form method="post" action="{{ url_for('admin_sponsor_toggle', sid=s['id']) }}" style="display:inline">
+            <button type="submit" class="linklike">{% if s['is_active'] %}Pause{% else %}Resume{% endif %}</button>
+          </form>
+          |
+          <form method="post" action="{{ url_for('admin_sponsor_delete', sid=s['id']) }}" style="display:inline"
+                onsubmit="return confirm('Delete sponsor {{ s['name'] }}? This cannot be undone.')">
+            <button type="submit" class="linklike danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No sponsors yet.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Add a sponsor</h2>
+  <form method="post" action="{{ url_for('admin_sponsor_add') }}">
+    <label>Name <input name="name" placeholder="e.g. North Main Family Dental" required></label>
+    <label>One-line description <input name="tagline" placeholder="e.g. Family dental care in Airdrie"></label>
+    <label>Website URL <input name="url" type="url" placeholder="https://…" required></label>
+    <label>Town <input name="town" placeholder="e.g. Airdrie" required></label>
+    <label>Reach (km) — users within this distance of the business also see it <input name="radius_km" type="number" min="0" step="1" value="30"></label>
+    <label>Business email (required — renewal notices and their own news page go here) <input name="email" type="email" placeholder="owner@business.com" required></label>
+    <button type="submit" class="btn">Add sponsor</button>
+  </form>
+  <p class="muted small">Sponsors go live immediately — no deploy needed. Active since is today, renewal is in 30 days (both editable on the sponsor's page). The sponsor gets a unique link to manage their own news.</p>
+</div>
+{% endblock %}

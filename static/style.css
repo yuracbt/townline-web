@@ -333,20 +333,14 @@ body.login-page .brand { color: #f5b95e; }
   padding: 6px 18px; border-radius: 20px; }
 .fbtn:hover { text-decoration: none !important; filter: brightness(0.93); }
 
-/* ---- Sponsored posts (dashboard promo card, Places featured list) ---- */
-.sponsor-promo { position: relative; border: 1px solid var(--accent); }
-.sponsor-promo-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* ---- Sponsored news rows (Business tile) + Places featured list ---- */
+.sponsor-story { padding: 13px 16px; border-bottom: 1px solid var(--line-soft); }
+.sponsor-story:last-child { border-bottom: none; }
 .sponsor-badge {
   background: var(--accent); color: #fff; font-size: .75rem; font-weight: 700;
   letter-spacing: 1px; text-transform: uppercase;
   padding: 2px 8px; border-radius: 999px;
 }
-.sponsor-promo-text { margin: 10px 0; }
-.sponsor-dismiss {
-  position: absolute; top: 6px; right: 10px; background: none; border: none;
-  font-size: 1.3rem; line-height: 1; color: var(--muted); cursor: pointer;
-}
-.sponsor-dismiss:hover { color: var(--ink); }
 .suggest-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .suggest-head h2 { margin: 0; }
 .sponsor-item { padding: 8px 0; border-bottom: 1px solid var(--border); }

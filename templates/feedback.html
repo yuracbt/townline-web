@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Leave us feedback — TownsLine{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Leave us feedback</h1>
+  <p class="muted">Tell us what works, what's broken, or what you'd like to see. It goes straight to the founder.</p>
+  <form method="post">
+    <label>Your message
+      <textarea name="message" rows="6" maxlength="2000" required
+                placeholder="e.g. I'd love a weekly email digest of my town's top stories."
+                style="width:100%"></textarea>
+    </label>
+    <div style="margin-top:12px">
+      <button type="submit" class="btn">Send feedback</button>
+      <a class="btn ghost" href="{{ url_for('dashboard') }}">Back to news</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

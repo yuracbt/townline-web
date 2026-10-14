@@ -342,6 +342,18 @@ body.login-page .brand { color: #f5b95e; }
   padding: 2px 8px; border-radius: 999px;
 }
 .suggest-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* ---- Admin pages: sub-nav, status pills, table headers ---- */
+.admin-nav { margin: 2px 0 14px; color: var(--muted); font-size: .95rem; }
+.admin-nav a { color: var(--accent); text-decoration: none; }
+.admin-nav a:hover { text-decoration: underline; }
+.status-pill {
+  display: inline-block; font-size: .75rem; font-weight: 700;
+  padding: 2px 10px; border-radius: 999px; white-space: nowrap;
+}
+.status-pill.ok { background: #e3f2e4; color: #2e6b34; }
+.status-pill.bad { background: #fbe9e5; color: var(--danger); }
+.admintable th { white-space: nowrap; }
 .suggest-head h2 { margin: 0; }
 .sponsor-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .sponsor-item:last-child { border-bottom: none; }

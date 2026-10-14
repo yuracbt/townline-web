@@ -136,6 +136,7 @@ def live_sponsor_promos(town_name):
             "name": s.get("name", ""),
             "url": s.get("url", ""),
             "key": f"{slug}|{s.get('name', '')}|{promo.get('title', '')}",
+            "example": bool(s.get("example")),
             "promo": promo,
         })
     return out

@@ -6,7 +6,7 @@
     <h1>{{ settings.get('town_name') or 'Your town' }}</h1>
     <p class="muted">
       {% if unread and settings.get('notify_enabled') %}
-        <strong><span data-unread-count>{{ unread }}</span> new {{ 'story' if unread == 1 else 'stories' }}</strong>
+        <strong><span data-unread-count data-cat="__all__">{{ unread }}</span> new {{ 'story' if unread == 1 else 'stories' }}</strong>
         — <a href="{{ url_for('mark_all_read') }}">mark all read</a>
       {% elif unread %}
         <span data-unread-count>{{ unread }}</span> unread
@@ -28,7 +28,7 @@
 
 <div class="chips">
   {% for chip in chips %}
-  <a class="chip{% if chip.active %} on{% endif %}" href="{{ chip.url }}">{{ chip.label }}{% if chip.count %} <span class="count" data-unread-count>{{ chip.count }}</span>{% endif %}</a>
+  <a class="chip{% if chip.active %} on{% endif %}" href="{{ chip.url }}" data-cat="{{ chip.key }}">{{ chip.label }}{% if chip.count %} <span class="count" data-unread-count data-cat="{{ chip.key }}">{{ chip.count }}</span>{% endif %}</a>
   {% endfor %}
   <label class="switch-wrap" title="Show only unread stories">
     <span class="switch">
@@ -50,7 +50,7 @@
 
 <ul class="stories">
 {% for s in stories %}
-  <li class="story{% if s['is_read'] %} read{% else %} unread{% endif %}" data-id="{{ s['id'] }}" data-url="{{ s['url'] }}">
+  <li class="story{% if s['is_read'] %} read{% else %} unread{% endif %}" data-id="{{ s['id'] }}" data-url="{{ s['url'] }}" data-cat="{{ s['category'] }}">
     <div class="srow">
       <a class="stitle" href="{{ s['url'] }}" target="_blank" rel="noopener">{{ s['title'] }}</a>
       <span class="cat">{{ s['category'] }}</span>
@@ -60,7 +60,7 @@
       <span>{{ rel_time(s['published']) }}</span>
       <span class="actions">
         <a class="iconbtn" data-act="save" href="{{ url_for('toggle_save', sid=s['id']) }}" title="Save / unsave">{{ '★' if s['is_saved'] else '☆' }}</a>
-        {% if not s['is_read'] %}<a class="iconbtn" data-act="read" href="{{ url_for('mark_read', sid=s['id']) }}" title="Mark read">✓</a>{% endif %}
+        {% if not s['is_read'] %}<a class="iconbtn markread-btn" data-act="read" href="{{ url_for('mark_read', sid=s['id']) }}" title="Mark only this story read">Mark read</a>{% endif %}
       </span>
     </div>
   </li>
@@ -87,9 +87,20 @@
     var row = document.querySelector('.story[data-id="' + id + '"]');
     if (row && !row.classList.contains('read')) {
       row.classList.add('read');
+      // Decrement only the totals and the chip for this story's category
+      // (plus Saved if the story is saved) — marking one story must not
+      // touch other categories' counts.
+      var cat = row.dataset.cat;
+      var saveBtn = row.querySelector('[data-act="save"]');
+      var isSaved = saveBtn && saveBtn.textContent.trim() === '★';
       document.querySelectorAll('[data-unread-count]').forEach(function (el) {
+        var scope = el.dataset.cat || '';
+        if (scope !== '__all__' && scope !== cat && !(scope === 'Saved' && isSaved)) return;
         var n = parseInt(el.textContent, 10);
-        if (n > 0) el.textContent = n - 1;
+        if (n > 0) {
+          el.textContent = n - 1;
+          if (n - 1 === 0 && el.classList.contains('count')) el.remove();
+        }
       });
       var sw = document.getElementById('unreadSwitch');
       if (sw && sw.checked) {

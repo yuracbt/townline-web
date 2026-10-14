@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Pause {{ sponsor['name'] }} — TownsLine{% endblock %}
+{% block content %}
+<h1>Pause {{ sponsor['name'] }}</h1>
+<p class="muted">Pausing hides the listing and all its news everywhere. The business gets an email naming the reason.</p>
+<form method="post" action="{{ url_for('admin_sponsor_pause', sid=sponsor['id']) }}">
+  <label>Reason
+    <select name="reason">
+      <option value="payment">No payment</option>
+      <option value="violation">Rules violation</option>
+      <option value="other">Other</option>
+    </select>
+  </label>
+  <label>If Other, say why <input name="other" placeholder="e.g. Business closed for renovation"></label>
+  <button type="submit" class="btn">Pause listing</button>
+  <a class="btn ghost" href="{{ url_for('admin_sponsor_detail', sid=sponsor['id']) }}">Cancel</a>
+</form>
+{% endblock %}

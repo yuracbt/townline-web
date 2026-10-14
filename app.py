@@ -1355,6 +1355,13 @@ def dashboard():
     unread_saved = db.execute(
         "SELECT COUNT(*) c FROM stories WHERE user_id = ? AND is_read = 0 "
         "AND is_saved = 1", (user["id"],)).fetchone()["c"]
+    # Unread count for the category tile being viewed (None on "All").
+    if active_cat == "Saved":
+        cat_unread = unread_saved
+    elif active_cat:
+        cat_unread = unread_counts.get(active_cat, 0)
+    else:
+        cat_unread = None
 
     def chip_url(category=None, unread=False):
         args = {}
@@ -1429,6 +1436,7 @@ def dashboard():
     return render_template(
         "dashboard.html", user=user, settings=settings, chips=chips,
         active_cat=active_cat, unread=unread_total, unread_only=unread_only,
+        cat_unread=cat_unread,
         stories=stories, rel_time=rel_time, page=page, total_pages=total_pages,
         page_url=page_url,
         sponsor_promos=live_sponsor_promos(settings.get("town_name")),
@@ -1453,9 +1461,21 @@ def mark_read(sid):
 @login_required
 def mark_all_read():
     db = get_db()
-    db.execute("UPDATE stories SET is_read = 1 WHERE user_id = ?",
-               (session["user_id"],))
+    # ?category=Ukraine marks only that category read; ?category=Saved
+    # marks only saved stories read. No param = everything.
+    category = request.args.get("category", "")
+    if category == "Saved":
+        db.execute("UPDATE stories SET is_read = 1 WHERE user_id = ? "
+                   "AND is_saved = 1", (session["user_id"],))
+    elif category:
+        db.execute("UPDATE stories SET is_read = 1 WHERE user_id = ? "
+                   "AND category = ?", (session["user_id"], category))
+    else:
+        db.execute("UPDATE stories SET is_read = 1 WHERE user_id = ?",
+                   (session["user_id"],))
     db.commit()
+    if category:
+        return redirect(url_for("dashboard", category=category))
     return redirect(url_for("dashboard"))
 
 

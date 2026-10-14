@@ -69,6 +69,7 @@ button:hover, .btn:hover { filter: brightness(0.93); }
 .flashes li {
   background: var(--accent-soft); border: 1px solid var(--accent);
   color: var(--ink); border-radius: 8px; padding: 10px 14px;
+  transition: opacity .6s;
 }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; align-items: center; }
 .chip {

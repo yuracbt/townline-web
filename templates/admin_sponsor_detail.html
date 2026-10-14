@@ -2,7 +2,7 @@
 {% block title %}{{ sponsor['name'] }} — Sponsor — TownsLine{% endblock %}
 {% block content %}
 <h1>{{ sponsor['name'] }}</h1>
-<p><a href="{{ url_for('admin_sponsors') }}">← Back to Sponsors</a></p>
+<nav class="admin-nav"><a href="{{ url_for('admin_panel') }}">Administration</a> · <a href="{{ url_for('admin_sponsors') }}">Sponsors</a> · <strong>{{ sponsor['name'] }}</strong></nav>
 
 <div class="card">
   <h2>Edit sponsor</h2>
@@ -15,9 +15,22 @@
     <label>Business email <input name="email" type="email" value="{{ sponsor['email'] or '' }}" required></label>
     <label>Active since <input name="active_since" type="date" value="{{ sponsor['active_since'] or '' }}"></label>
     <label>Renews (payment due) <input name="renews_on" type="date" value="{{ sponsor['renews_on'] or '' }}"></label>
+    <label>Payment period
+      <select name="billing_period">
+        <option value="1" {% if (sponsor['billing_period'] or 1) == 1 %}selected{% endif %}>Monthly</option>
+        <option value="3" {% if sponsor['billing_period'] == 3 %}selected{% endif %}>Every 3 months</option>
+        <option value="6" {% if sponsor['billing_period'] == 6 %}selected{% endif %}>Every 6 months</option>
+        <option value="12" {% if sponsor['billing_period'] == 12 %}selected{% endif %}>Yearly</option>
+      </select>
+    </label>
+    <p class="muted small">Last paid: {{ sponsor['last_paid_on'] or '—' }} · News this period: {{ news_used }} / {{ news_limit }}</p>
     <button type="submit" class="btn">Save changes</button>
   </form>
   <p>
+    <form method="post" action="{{ url_for('admin_sponsor_mark_paid', sid=sponsor['id']) }}" style="display:inline"
+          onsubmit="return confirm('Mark {{ sponsor['name'] }} as paid? Renewal moves forward one billing period and the news allowance resets.')">
+      <button type="submit" class="btn">Mark paid</button>
+    </form>
     <form method="post" action="{{ url_for('admin_sponsor_toggle', sid=sponsor['id']) }}" style="display:inline">
       <button type="submit" class="btn ghost">{% if sponsor['is_active'] %}Pause listing{% else %}Resume listing{% endif %}</button>
     </form>
@@ -26,7 +39,7 @@
       <button type="submit" class="btn ghost danger">Delete sponsor</button>
     </form>
   </p>
-  <p class="muted small">Status: {% if sponsor['is_active'] %}Active{% else %}<span class="error">Paused</span>{% endif %}. Pause hides the listing and all its news everywhere.</p>
+  <p class="muted small">Status: {% if sponsor['is_active'] %}<span class="status-pill ok">Active</span>{% else %}<span class="status-pill bad">Paused</span>{% endif %}. Pause hides the listing and all its news everywhere.</p>
 </div>
 
 <div class="card">
@@ -41,7 +54,7 @@
 
 <div class="card">
   <h2>News ({{ news|length }})</h2>
-  <p class="muted small">Each news item appears as a Sponsored card on the Business tile for readers in {{ sponsor['town_name'] or sponsor['town_slug'] }} and nearby. Expired news hides automatically.</p>
+  <p class="muted small">News this period: {{ news_used }} / {{ news_limit }}. Each news item appears as a Sponsored row on the Business tile for readers in {{ sponsor['town_name'] or sponsor['town_slug'] }} and nearby. Expired news hides automatically.</p>
   {% for n in news %}
   <form method="post" action="{{ url_for('admin_sponsor_news_edit', nid=n['id']) }}" class="news-edit">
     <label>Headline <input name="title" value="{{ n['title'] }}" required></label>

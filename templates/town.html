@@ -41,7 +41,6 @@
     {% for s in sponsors %}
     <li class="sponsor-item">
       <a class="sponsor-name" href="{{ s.url }}" target="_blank" rel="noopener">{{ s.name }}</a>
-      {% if s.example %}<span class="pill">Example</span>{% endif %}
       {% if s.tagline %}<span class="muted"> — {{ s.tagline }}</span>{% endif %}
     </li>
     {% endfor %}

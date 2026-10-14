@@ -1325,10 +1325,10 @@ def dashboard():
         return url_for("dashboard", **args)
 
     chips = [
-        {"label": "All", "url": chip_url(unread=unread_only),
+        {"label": "All", "key": "__all__", "url": chip_url(unread=unread_only),
          "count": unread_total,
          "active": not active_cat and not unread_only},
-        {"label": "★ Saved",
+        {"label": "★ Saved", "key": "Saved",
          "url": chip_url(category="Saved", unread=unread_only),
          "count": unread_saved, "active": active_cat == "Saved"},
     ]
@@ -1337,6 +1337,7 @@ def dashboard():
             continue
         chips.append({
             "label": c,
+            "key": c,
             "url": chip_url(category=c, unread=unread_only),
             "count": unread_counts.get(c, 0),
             "active": active_cat == c,

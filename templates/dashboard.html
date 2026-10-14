@@ -57,23 +57,22 @@
 </p>
 {% endif %}
 
-{% if sponsor_promos %}
-{% for sp in sponsor_promos %}
-<div class="card sponsor-promo" data-promo-key="{{ sp.key }}">
-  <button type="button" class="sponsor-dismiss" title="Hide this post">×</button>
-  <div class="sponsor-promo-head">
-    <span class="sponsor-badge">Sponsored</span>
-    <strong><a href="{{ sp.url }}" target="_blank" rel="noopener">{{ sp.name }}</a></strong>
-    <span class="muted small">— a local business</span>
-  </div>
-  <p class="sponsor-promo-text"><strong>{{ sp.promo.title }}</strong>{% if sp.promo.text %} — {{ sp.promo.text }}{% endif %}</p>
-  <a class="btn ghost small" href="{{ sp.promo.url or sp.url }}" target="_blank" rel="noopener">Learn more</a>
-</div>
-{% endfor %}
-{% endif %}
-
 <ul class="stories">
 {% for s in stories %}
+  {% if s['is_sponsor'] %}
+  <li class="sponsor-story">
+    <div class="srow">
+      <a class="stitle" href="{{ s['url'] }}" target="_blank" rel="noopener">{{ s['title'] }}</a>
+      <span class="cat">Business</span>
+    </div>
+    <div class="smeta">
+      <span>{{ s['feed_name'] }}</span> ·
+      <span>{{ rel_time(s['published']) }}</span>
+      <span class="sponsor-badge">Sponsored</span>
+      {% if s['text'] %}<span> — {{ s['text'] }}</span>{% endif %}
+    </div>
+  </li>
+  {% else %}
   <li class="story{% if s['is_read'] %} read{% else %} unread{% endif %}" data-id="{{ s['id'] }}" data-url="{{ s['url'] }}" data-cat="{{ s['category'] }}">
     <div class="srow">
       <a class="stitle" href="{{ s['url'] }}" target="_blank" rel="noopener">{{ s['title'] }}</a>
@@ -88,6 +87,7 @@
       </span>
     </div>
   </li>
+  {% endif %}
 {% endfor %}
 </ul>
 
@@ -105,20 +105,6 @@
 
 <script>
 (function () {
-  // Sponsored posts: dismiss hides the card and remembers it in this
-  // browser, so it does not come back on every page load.
-  document.querySelectorAll('.sponsor-promo').forEach(function (card) {
-    var key = 'dismissed-promo:' + card.dataset.promoKey;
-    if (window.localStorage && localStorage.getItem(key)) {
-      card.remove();
-      return;
-    }
-    var btn = card.querySelector('.sponsor-dismiss');
-    if (btn) btn.addEventListener('click', function () {
-      if (window.localStorage) localStorage.setItem(key, '1');
-      card.remove();
-    });
-  });
   // Clicking anywhere on a story line opens the article in a new tab
   // and marks the story read instantly (no page reload).
   function markRead(id) {

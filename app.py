@@ -1649,6 +1649,9 @@ def api_places_suggestions():
     db = get_db()
     settings = get_settings(user["id"])
     town = settings.get("town_name", "")
+    if request.args.get("refresh") == "1":
+        # Rethink: drop the cached OSM discovery so this call scans fresh.
+        _osm_cache.pop((town or "").lower().strip(), None)
     have = {norm_url(r["url"]) for r in
             db.execute("SELECT url FROM places WHERE user_id = ?",
                        (user["id"],)).fetchall()}

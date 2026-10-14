@@ -31,13 +31,11 @@
           onsubmit="return confirm('Mark {{ sponsor['name'] }} as paid? Renewal moves forward one billing period and the news allowance resets.')">
       <button type="submit" class="btn">Mark paid</button>
     </form>
-    <form method="post" action="{{ url_for('admin_sponsor_toggle', sid=sponsor['id']) }}" style="display:inline">
-      <button type="submit" class="btn ghost">{% if sponsor['is_active'] %}Pause listing{% else %}Resume listing{% endif %}</button>
-    </form>
-    <form method="post" action="{{ url_for('admin_sponsor_delete', sid=sponsor['id']) }}" style="display:inline"
-          onsubmit="return confirm('Delete sponsor {{ sponsor['name'] }}? This cannot be undone.')">
-      <button type="submit" class="btn ghost danger">Delete sponsor</button>
-    </form>
+    {% if sponsor['is_active'] %}<a class="btn ghost" href="{{ url_for('admin_sponsor_pause', sid=sponsor['id']) }}">Pause listing</a>
+    {% else %}<form method="post" action="{{ url_for('admin_sponsor_resume', sid=sponsor['id']) }}" style="display:inline">
+      <button type="submit" class="btn ghost">Resume listing</button>
+    </form>{% endif %}
+    <a class="btn ghost danger" href="{{ url_for('admin_sponsor_delete', sid=sponsor['id']) }}">Delete sponsor</a>
   </p>
   <p class="muted small">Status: {% if sponsor['is_active'] %}<span class="status-pill ok">Active</span>{% else %}<span class="status-pill bad">Paused</span>{% endif %}. Pause hides the listing and all its news everywhere.</p>
 </div>

@@ -2151,7 +2151,15 @@ def dashboard():
     # repeat across pages), newest first.
     if active_cat == "Business" and page == 1:
         stories += sponsor_news_stories_for_user(settings)
-        stories.sort(key=lambda r: r["published"], reverse=True)
+        # NULL-safe sort: a legacy story row can have no published date
+        # (None or text) — comparing it with ints crashed the whole
+        # Business tile with a 500. Such rows sort as oldest.
+        def _sort_ts(v):
+            try:
+                return int(v or 0)
+            except (TypeError, ValueError):
+                return 0
+        stories.sort(key=lambda r: _sort_ts(r["published"]), reverse=True)
 
     return render_template(
         "dashboard.html", user=user, settings=settings, chips=chips,

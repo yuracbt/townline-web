@@ -4,6 +4,22 @@
 <h1>Places</h1>
 <p class="muted">Local spots for {{ settings.get('town_name') or 'your town' }} — theatres, galleries, libraries, universities and more. Saved places open in a new tab.</p>
 
+{% if sponsors %}
+<h2>Featured local businesses in {{ settings.get('town_name') or 'your town' }}</h2>
+<ul class="feedlist">
+{% for s in sponsors %}
+  <li class="feed">
+    <div>
+      <strong><a href="{{ s['url'] }}" target="_blank" rel="noopener">{{ s['name'] }}</a></strong>
+      <span class="pill">Featured</span>
+      {% if s.get('tagline') %}<div class="muted small">{{ s['tagline'] }}</div>{% endif %}
+    </div>
+  </li>
+{% endfor %}
+</ul>
+<p class="muted small">Featured listings support TownsLine and keep it free for readers.</p>
+{% endif %}
+
 <h2>Your places</h2>
 <ul class="feedlist">
 {% for p in places %}

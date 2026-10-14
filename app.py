@@ -252,6 +252,53 @@ def send_sponsor_welcome(sponsor):
                       body, bcc=ADMIN_EMAIL)
 
 
+def send_sponsor_paused(sponsor):
+    """Paused-for-nonpayment notice: the listing + news are hidden until
+    payment comes through. Admin in BCC."""
+    portal = SITE_URL.rstrip("/") + "/s/" + sponsor["code"]
+    body = (
+        f"Hi {sponsor['name']},\n\n"
+        f"Your TownsLine featured listing has been paused because we "
+        f"haven't received payment for the next period.\n\n"
+        f"Your listing and your news are hidden for now — they come back "
+        f"as soon as payment goes through.\n\n"
+        f"Your listing was due to renew on "
+        f"{sponsor.get('renews_on') or '—'}.\n\n"
+        f"Your personal news link (for when you're back):\n{portal}\n\n"
+        f"Questions? Just reply to this email.\n\n— TownsLine"
+    )
+    return send_email(sponsor["email"],
+                      "Your TownsLine listing is paused — payment overdue",
+                      body, bcc=ADMIN_EMAIL)
+
+
+def auto_pause_overdue_sponsors():
+    """Hourly: sponsors past their renewal date with no Mark paid get
+    paused automatically (listing + news hidden) and emailed. Paused
+    rows are never re-selected, so this never double-fires."""
+    db = get_db()
+    today = datetime.now(timezone.utc).date().isoformat()
+    for s in db.execute(
+            "SELECT * FROM sponsors WHERE is_active = 1 "
+            "AND renews_on != '' AND renews_on < ?", (today,)).fetchall():
+        db.execute("UPDATE sponsors SET is_active = 0 WHERE id = ?",
+                   (s["id"],))
+        db.commit()
+        if s["email"]:
+            send_sponsor_paused(dict(s))
+
+
+def flag_overdue_sponsors(sponsors):
+    """Mark active sponsors past their renewal date — the Admin tables
+    highlight these rows so unpaid listings stand out."""
+    today = datetime.now(timezone.utc).date().isoformat()
+    for s in sponsors:
+        s["is_overdue"] = bool(
+            s.get("is_active") and s.get("renews_on")
+            and s["renews_on"] < today)
+    return sponsors
+
+
 def send_renewal_notices():
     """Email sponsors 3 days before their listing renews (admin in BCC).
 
@@ -286,12 +333,13 @@ def send_renewal_notices():
 
 
 def renewal_loop():
-    """Daemon: check renewal notices hourly (send_renewal_notices is
-    idempotent, so repeats and restarts are harmless)."""
+    """Daemon: check renewal notices + auto-pause overdue sponsors hourly
+    (both are idempotent, so repeats and restarts are harmless)."""
     while True:
         try:
             with app.app_context():
                 send_renewal_notices()
+                auto_pause_overdue_sponsors()
         except Exception as e:  # noqa: BLE001 - background job never dies
             app.logger.warning("renewal notices failed: %s", e)
         time.sleep(3600)
@@ -1511,6 +1559,7 @@ def admin_panel():
         "SELECT s.*, (SELECT COUNT(*) FROM sponsor_news n "
         "WHERE n.sponsor_id = s.id AND n.is_active = 1) AS news_count "
         "FROM sponsors s ORDER BY s.is_active DESC, s.name").fetchall()]
+    flag_overdue_sponsors(sponsor_rows)
     return render_template("admin.html", users=user_rows, tokens=token_rows,
                            feedback=feedback_rows, sponsors=sponsor_rows,
                            admin_username=ADMIN_USERNAME,
@@ -1620,6 +1669,7 @@ def admin_sponsors():
         "SELECT s.*, (SELECT COUNT(*) FROM sponsor_news n "
         "WHERE n.sponsor_id = s.id AND n.is_active = 1) AS news_count "
         "FROM sponsors s ORDER BY s.is_active DESC, s.name").fetchall()]
+    flag_overdue_sponsors(sponsors)
     return render_template("admin_sponsors.html", sponsors=sponsors,
                            user=current_user())
 
@@ -1809,11 +1859,20 @@ def admin_sponsor_toggle(sid):
     row = db.execute("SELECT * FROM sponsors WHERE id = ?",
                      (sid,)).fetchone()
     if row:
+        was_active = bool(row["is_active"])
         db.execute("UPDATE sponsors SET is_active = ? WHERE id = ?",
-                   (0 if row["is_active"] else 1, sid))
+                   (0 if was_active else 1, sid))
         db.commit()
-        flash(("Paused " if row["is_active"] else "Resumed ")
-              + row["name"] + ".")
+        if was_active:
+            # Just paused: tell the business their listing + news are off
+            # for late / no payment (admin in BCC).
+            emailed = (send_sponsor_paused(dict(row))
+                       if row["email"] else False)
+            flash(f"Paused {row['name']}."
+                  + (" Notice email sent." if emailed else
+                     " (no email on file — no notice sent)"))
+        else:
+            flash(f"Resumed {row['name']}.")
     return redirect(url_for("admin_sponsors"))
 
 

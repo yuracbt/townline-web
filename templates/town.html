@@ -34,6 +34,21 @@
   <p class="muted"><a href="{{ url_for('about_page') }}">Why TownsLine exists →</a></p>
 </div>
 
+{% if sponsors %}
+<div class="card town-card">
+  <h2>Featured local businesses in {{ town.name }}</h2>
+  <ul class="sponsor-list">
+    {% for s in sponsors %}
+    <li class="sponsor-item">
+      <a class="sponsor-name" href="{{ s.url }}" target="_blank" rel="noopener">{{ s.name }}</a>
+      {% if s.tagline %}<span class="muted"> — {{ s.tagline }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="muted small">Featured listings support TownsLine and keep it free for readers.</p>
+</div>
+{% endif %}
+
 <div class="card town-card">
   <h2>How it works</h2>
   <ol class="town-steps">

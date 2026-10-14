@@ -252,23 +252,72 @@ def send_sponsor_welcome(sponsor):
                       body, bcc=ADMIN_EMAIL)
 
 
-def send_sponsor_paused(sponsor):
-    """Paused-for-nonpayment notice: the listing + news are hidden until
-    payment comes through. Admin in BCC."""
+def send_sponsor_paused(sponsor, reason):
+    """Paused notice: the listing + news are hidden. `reason` is the
+    human-readable cause ('No payment', 'Rules violation', free text).
+    Admin in BCC."""
     portal = SITE_URL.rstrip("/") + "/s/" + sponsor["code"]
     body = (
         f"Hi {sponsor['name']},\n\n"
-        f"Your TownsLine featured listing has been paused because we "
-        f"haven't received payment for the next period.\n\n"
+        f"Your TownsLine featured listing has been paused.\n\n"
+        f"Reason: {reason}.\n\n"
         f"Your listing and your news are hidden for now — they come back "
-        f"as soon as payment goes through.\n\n"
+        f"as soon as the issue is resolved.\n\n"
         f"Your listing was due to renew on "
         f"{sponsor.get('renews_on') or '—'}.\n\n"
         f"Your personal news link (for when you're back):\n{portal}\n\n"
         f"Questions? Just reply to this email.\n\n— TownsLine"
     )
     return send_email(sponsor["email"],
-                      "Your TownsLine listing is paused — payment overdue",
+                      "Your TownsLine listing is paused",
+                      body, bcc=ADMIN_EMAIL)
+
+
+def send_sponsor_deleted(sponsor, reason):
+    """Deleted-by-request notice. Admin in BCC."""
+    body = (
+        f"Hi {sponsor['name']},\n\n"
+        f"Your TownsLine featured listing has been deleted by request.\n\n"
+        f"Reason: {reason}.\n\n"
+        f"Your listing and your news are removed.\n\n"
+        f"Questions? Just reply to this email.\n\n— TownsLine"
+    )
+    return send_email(sponsor["email"],
+                      "Your TownsLine listing has been deleted",
+                      body, bcc=ADMIN_EMAIL)
+
+
+def send_sponsor_news_added(sponsor, news):
+    """News-is-live notice with the item's details. Admin in BCC."""
+    body = (
+        f"Hi {sponsor['name']},\n\n"
+        f"New news is live on your TownsLine listing:\n\n"
+        f"Headline: {news['title']}\n"
+        f"Text: {news.get('text') or '—'}\n"
+        f"Link: {news.get('url') or sponsor['url']}\n"
+        f"Expires: {news.get('expires') or 'no expiry'}\n\n"
+        f"It now shows as a Sponsored row on the Business tile for "
+        f"readers in {sponsor.get('town_name') or 'your town'} and nearby.\n\n"
+        f"Questions? Just reply to this email.\n\n— TownsLine"
+    )
+    return send_email(sponsor["email"],
+                      f"Your TownsLine news is live: {news['title']}",
+                      body, bcc=ADMIN_EMAIL)
+
+
+def send_sponsor_changed(sponsor, changes):
+    """Info-changed notice listing exactly what changed
+    (list of (field, old, new)). Admin in BCC."""
+    lines = "\n".join(f"{label}: {old} → {new}"
+                      for label, old, new in changes)
+    body = (
+        f"Hi {sponsor['name']},\n\n"
+        f"Your TownsLine listing information was changed:\n\n"
+        f"{lines}\n\n"
+        f"Questions? Just reply to this email.\n\n— TownsLine"
+    )
+    return send_email(sponsor["email"],
+                      "Your TownsLine listing information changed",
                       body, bcc=ADMIN_EMAIL)
 
 
@@ -285,7 +334,9 @@ def auto_pause_overdue_sponsors():
                    (s["id"],))
         db.commit()
         if s["email"]:
-            send_sponsor_paused(dict(s))
+            send_sponsor_paused(
+                dict(s),
+                "No payment (renewal date passed, no payment received)")
 
 
 def flag_overdue_sponsors(sponsors):
@@ -1806,6 +1857,26 @@ def admin_sponsor_edit(sid):
         lat, lon = _sponsor_coords(town, slug)
     else:
         lat, lon = row["lat"], row["lon"]
+    # What exactly changed — the business gets a notice listing only
+    # the fields that actually changed.
+    period_labels = {1: "Monthly", 3: "Every 3 months",
+                     6: "Every 6 months", 12: "Yearly"}
+    changes = []
+    for label, old, new in (
+        ("Name", row["name"], name),
+        ("Description", row["tagline"] or "", tagline),
+        ("Website", row["url"], url),
+        ("Town", row["town_name"] or "", town),
+        ("Reach (km)", str(row["radius_km"]), str(radius)),
+        ("Email", row["email"] or "", email),
+        ("Active since", row["active_since"] or "", active_since),
+        ("Renews", row["renews_on"] or "", renews_on),
+        ("Payment period",
+         period_labels.get(row["billing_period"] or 1, "?"),
+         period_labels.get(billing_period, "?")),
+    ):
+        if str(old) != str(new):
+            changes.append((label, old or "—", new or "—"))
     db.execute(
         "UPDATE sponsors SET name = ?, tagline = ?, url = ?, "
         "town_slug = ?, town_name = ?, lat = ?, lon = ?, radius_km = ?, "
@@ -1815,7 +1886,16 @@ def admin_sponsor_edit(sid):
          active_since, renews_on, billing_period, sid),
     )
     db.commit()
-    flash(f"Sponsor {name} updated.")
+    if not changes:
+        flash("No changes made.")
+        return redirect(url_for("admin_sponsor_detail", sid=sid))
+    updated = db.execute("SELECT * FROM sponsors WHERE id = ?",
+                         (sid,)).fetchone()
+    emailed = (send_sponsor_changed(dict(updated), changes)
+               if updated["email"] else False)
+    flash(f"Sponsor {name} updated."
+          + (" Change notice email sent." if emailed else
+             " (no email on file — no notice sent)"))
     return redirect(url_for("admin_sponsor_detail", sid=sid))
 
 
@@ -1850,46 +1930,100 @@ def admin_sponsor_mark_paid(sid):
     return redirect(url_for("admin_sponsor_detail", sid=sid))
 
 
-@app.route("/admin/sponsors/<int:sid>/toggle", methods=["POST"])
+@app.route("/admin/sponsors/<int:sid>/pause", methods=["GET", "POST"])
 @login_required
 @admin_required
-def admin_sponsor_toggle(sid):
-    """Pause (hide everywhere) or resume a sponsor — e.g. stopped paying."""
+def admin_sponsor_pause(sid):
+    """Pause with a reason: No payment / Rules violation / Other
+    (free text). The business gets a paused email naming the reason."""
+    db = get_db()
+    row = db.execute("SELECT * FROM sponsors WHERE id = ?",
+                     (sid,)).fetchone()
+    if not row:
+        flash("Sponsor not found.")
+        return redirect(url_for("admin_sponsors"))
+    if not row["is_active"]:
+        flash("Already paused.")
+        return redirect(url_for("admin_sponsors"))
+    if request.method == "POST":
+        kind = request.form.get("reason", "")
+        other = request.form.get("other", "").strip()
+        if kind == "payment":
+            reason = "No payment"
+        elif kind == "violation":
+            reason = "Rules violation"
+        elif kind == "other":
+            if not other:
+                flash("Please enter a reason.")
+                return render_template("admin_sponsor_pause.html",
+                                       sponsor=dict(row),
+                                       user=current_user())
+            reason = other
+        else:
+            flash("Please choose a reason.")
+            return render_template("admin_sponsor_pause.html",
+                                   sponsor=dict(row),
+                                   user=current_user())
+        db.execute("UPDATE sponsors SET is_active = 0 WHERE id = ?",
+                   (sid,))
+        db.commit()
+        emailed = (send_sponsor_paused(dict(row), reason)
+                   if row["email"] else False)
+        flash(f"Paused {row['name']}."
+              + (" Notice email sent." if emailed else
+                 " (no email on file — no notice sent)"))
+        return redirect(url_for("admin_sponsors"))
+    return render_template("admin_sponsor_pause.html",
+                           sponsor=dict(row), user=current_user())
+
+
+@app.route("/admin/sponsors/<int:sid>/resume", methods=["POST"])
+@login_required
+@admin_required
+def admin_sponsor_resume(sid):
+    """Resume a paused sponsor — listing + news visible again."""
     db = get_db()
     row = db.execute("SELECT * FROM sponsors WHERE id = ?",
                      (sid,)).fetchone()
     if row:
-        was_active = bool(row["is_active"])
-        db.execute("UPDATE sponsors SET is_active = ? WHERE id = ?",
-                   (0 if was_active else 1, sid))
+        db.execute("UPDATE sponsors SET is_active = 1 WHERE id = ?",
+                   (sid,))
         db.commit()
-        if was_active:
-            # Just paused: tell the business their listing + news are off
-            # for late / no payment (admin in BCC).
-            emailed = (send_sponsor_paused(dict(row))
-                       if row["email"] else False)
-            flash(f"Paused {row['name']}."
-                  + (" Notice email sent." if emailed else
-                     " (no email on file — no notice sent)"))
-        else:
-            flash(f"Resumed {row['name']}.")
+        flash(f"Resumed {row['name']}.")
     return redirect(url_for("admin_sponsors"))
 
 
-@app.route("/admin/sponsors/<int:sid>/delete", methods=["POST"])
+@app.route("/admin/sponsors/<int:sid>/delete", methods=["GET", "POST"])
 @login_required
 @admin_required
 def admin_sponsor_delete(sid):
-    """Delete a sponsor — e.g. they asked to be removed."""
+    """Two-step delete: first confirm on the page (prevents accidents),
+    then a free-text reason — the business gets a deleted-by-request
+    email naming the reason."""
     db = get_db()
     row = db.execute("SELECT * FROM sponsors WHERE id = ?",
                      (sid,)).fetchone()
-    if row:
+    if not row:
+        flash("Sponsor not found.")
+        return redirect(url_for("admin_sponsors"))
+    if request.method == "POST":
+        reason = request.form.get("reason", "").strip()
+        if not reason:
+            flash("Please enter a reason for the deletion.")
+            return render_template("admin_sponsor_delete.html",
+                                   sponsor=dict(row), show_reason=True,
+                                   user=current_user())
         db.execute("DELETE FROM sponsor_news WHERE sponsor_id = ?", (sid,))
         db.execute("DELETE FROM sponsors WHERE id = ?", (sid,))
         db.commit()
+        if row["email"]:
+            send_sponsor_deleted(dict(row), reason)
         flash("Deleted sponsor " + row["name"] + ".")
-    return redirect(url_for("admin_sponsors"))
+        return redirect(url_for("admin_sponsors"))
+    show_reason = request.args.get("reason") == "1"
+    return render_template("admin_sponsor_delete.html",
+                           sponsor=dict(row), show_reason=show_reason,
+                           user=current_user())
 
 
 @app.route("/admin/sponsors/<int:sid>/regenerate", methods=["POST"])
@@ -1940,6 +2074,12 @@ def admin_sponsor_news_add(sid):
         (sid, title, text, url, expires, int(time.time())),
     )
     db.commit()
+    sponsor = db.execute("SELECT * FROM sponsors WHERE id = ?",
+                         (sid,)).fetchone()
+    if sponsor and sponsor["email"]:
+        send_sponsor_news_added(
+            dict(sponsor),
+            {"title": title, "text": text, "url": url, "expires": expires})
     flash("News added — live on the Business tile.")
     return redirect(url_for("admin_sponsor_detail", sid=sid))
 
@@ -2052,6 +2192,10 @@ def sponsor_portal_news_add(code):
         (sponsor["id"], title, text, url, expires, int(time.time())),
     )
     db.commit()
+    if sponsor.get("email"):
+        send_sponsor_news_added(
+            sponsor,
+            {"title": title, "text": text, "url": url, "expires": expires})
     flash("News added — live on the Business tile.")
     return redirect(url_for("sponsor_portal", code=code))
 

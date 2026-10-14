@@ -135,6 +135,9 @@ def news_used_this_period(sponsor_id):
     return db.execute(
         "SELECT COUNT(*) c FROM sponsor_news WHERE sponsor_id = ? "
         "AND created_at >= ?", (sponsor_id, start or 0)).fetchone()["c"]
+
+
+def haversine_km(lat1, lon1, lat2, lon2):
     """Great-circle distance in km between two lat/lon points."""
     r = math.radians
     dlat = r(lat2 - lat1)

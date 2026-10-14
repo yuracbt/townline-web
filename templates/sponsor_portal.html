@@ -2,7 +2,8 @@
 {% block title %}{{ sponsor['name'] }} — Your news on TownsLine{% endblock %}
 {% block content %}
 <h1>{{ sponsor['name'] }}</h1>
-<p class="muted">Your news on TownsLine. Anything you post here appears as a Sponsored card on the Business tile for readers in {{ sponsor['town_name'] or sponsor['town_slug'] }} and nearby towns.</p>
+<p class="muted">Your news on TownsLine. Anything you post here appears as a news row on the Business tile for readers in {{ sponsor['town_name'] or sponsor['town_slug'] }} and nearby towns.</p>
+<p class="muted">You've used <strong>{{ news_used }} of {{ news_limit }}</strong> news posts this billing period.</p>
 
 <div class="card">
   <h2>Your news ({{ news|length }})</h2>

@@ -63,6 +63,26 @@ document.querySelectorAll('.expandcell').forEach(function(cell){
 </script>
 
 <div class="card">
+  <h2>Feedback ({{ feedback|length }})</h2>
+  {% if feedback %}
+  <table class="admintable">
+    <thead><tr><th>User</th><th>When</th><th>Message</th></tr></thead>
+    <tbody>
+    {% for f in feedback %}
+      <tr>
+        <td><strong>{{ f['username'] }}</strong><br><span class="muted small">{{ f['email'] or '—' }}</span></td>
+        <td>{{ f['created_str'] }}</td>
+        <td style="white-space:pre-wrap">{{ f['message'] }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No feedback yet.</p>
+  {% endif %}
+</div>
+
+<div class="card">
   <h2>Password reset requests</h2>
   {% if email_ok %}
     <p class="muted small">Email delivery is configured — reset links are emailed automatically.</p>

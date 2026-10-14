@@ -63,49 +63,26 @@ document.querySelectorAll('.expandcell').forEach(function(cell){
 </script>
 
 <div class="card">
-  <h2>Sponsors ({{ sponsors|length }})</h2>
+  <h2>Sponsors ({{ sponsors|length }}) — <a href="{{ url_for('admin_sponsors') }}">Manage sponsors →</a></h2>
   {% if sponsors %}
   <table class="admintable">
-    <thead><tr><th>Business</th><th>Town</th><th>Reach</th><th>Promo</th><th>Status</th><th>Actions</th></tr></thead>
+    <thead><tr><th>Business</th><th>Town</th><th>Active since</th><th>Renews</th><th>News</th><th>Status</th></tr></thead>
     <tbody>
     {% for s in sponsors %}
       <tr{% if not s['is_active'] %} class="blocked"{% endif %}>
-        <td><strong><a href="{{ s['url'] }}" target="_blank" rel="noopener">{{ s['name'] }}</a></strong><br><span class="muted small">{{ s['tagline'] or '—' }}</span></td>
+        <td><strong><a href="{{ url_for('admin_sponsor_detail', sid=s['id']) }}">{{ s['name'] }}</a></strong><br><span class="muted small">{{ s['tagline'] or '—' }}</span></td>
         <td>{{ s['town_name'] or s['town_slug'] or '—' }}</td>
-        <td>{{ s['radius_km']|int }} km</td>
-        <td>{{ s['promo_title'] or '—' }}{% if s['promo_expires'] %}<br><span class="muted small">until {{ s['promo_expires'] }}</span>{% endif %}</td>
+        <td>{{ s['active_since'] or '—' }}</td>
+        <td>{{ s['renews_on'] or '—' }}</td>
+        <td>{{ s['news_count'] }}</td>
         <td>{% if s['is_active'] %}Active{% else %}<span class="error">Paused</span>{% endif %}</td>
-        <td>
-          <form method="post" action="{{ url_for('admin_sponsor_toggle', sid=s['id']) }}" style="display:inline">
-            <button type="submit" class="linklike">{% if s['is_active'] %}Pause{% else %}Resume{% endif %}</button>
-          </form>
-          |
-          <form method="post" action="{{ url_for('admin_sponsor_delete', sid=s['id']) }}" style="display:inline"
-                onsubmit="return confirm('Delete sponsor {{ s['name'] }}? This cannot be undone.')">
-            <button type="submit" class="linklike danger">Delete</button>
-          </form>
-        </td>
       </tr>
     {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <p class="muted">No sponsors yet.</p>
+  <p class="muted">No sponsors yet. <a href="{{ url_for('admin_sponsors') }}">Add one →</a></p>
   {% endif %}
-  <h3>Add a sponsor</h3>
-  <form method="post" action="{{ url_for('admin_sponsor_add') }}">
-    <label>Name <input name="name" placeholder="e.g. North Main Family Dental" required></label>
-    <label>One-line description <input name="tagline" placeholder="e.g. Family dental care in Airdrie"></label>
-    <label>Website URL <input name="url" type="url" placeholder="https://…" required></label>
-    <label>Town <input name="town" placeholder="e.g. Airdrie" required></label>
-    <label>Reach (km) — users within this distance of the business also see it <input name="radius_km" type="number" min="0" step="1" value="30"></label>
-    <label>Promo headline (optional — shows on the Business tile) <input name="promo_title" placeholder="e.g. Free whitening consultation"></label>
-    <label>Promo line <input name="promo_text" placeholder="e.g. This month only"></label>
-    <label>Promo link <input name="promo_url" type="url" placeholder="https://… (blank = website)"></label>
-    <label>Promo expires <input name="promo_expires" type="date"></label>
-    <button type="submit" class="btn">Add sponsor</button>
-  </form>
-  <p class="muted small">Sponsors go live immediately — no deploy needed. Pause hides a sponsor everywhere; Delete removes it for good.</p>
 </div>
 
 <div class="card">

@@ -51,5 +51,18 @@
   <span class="fdot">·</span><a href="{{ url_for('about_page') }}">Our story</a>
   {% if donate_url %}<span class="fdot">·</span><a class="fbtn" href="{{ donate_url }}" target="_blank" rel="noopener">♥ Donate</a>{% endif %}
 </footer>
+<script>
+  // Every notification fades out 7 seconds after it appears. The scan
+  // banner is the exception: it stays while the scan runs and its own
+  // 7-second timer starts only once the scan finishes (dashboard.html).
+  (function () {
+    document.querySelectorAll('.flashes li:not(#scan-banner)').forEach(function (el) {
+      setTimeout(function () {
+        el.style.opacity = '0';
+        setTimeout(function () { el.remove(); }, 650);
+      }, 7000);
+    });
+  })();
+</script>
 </body>
 </html>

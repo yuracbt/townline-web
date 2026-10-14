@@ -61,29 +61,36 @@ document.querySelectorAll('.expandcell').forEach(function(cell){
     cell.querySelector('.expander').textContent = open ? '▾' : '▸';
   });
 });
+document.querySelectorAll('tr[data-href]').forEach(function(row){
+  row.addEventListener('click', function(){
+    window.location.href = row.dataset.href;
+  });
+});
 </script>
 
 <div class="card">
-  <h2>Sponsors ({{ sponsors|length }}) — <a href="{{ url_for('admin_sponsors') }}">Manage sponsors →</a></h2>
+  <h2>Sponsors ({{ sponsors|length }})</h2>
   {% if sponsors %}
   <table class="admintable">
-    <thead><tr><th>Business</th><th>Town</th><th>Active since</th><th>Renews</th><th>News</th><th>Status</th></tr></thead>
+    <thead><tr><th>Business</th><th>Town</th><th>Active since</th><th>Renews</th><th>News</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody>
     {% for s in sponsors %}
-      <tr{% if not s['is_active'] %} class="blocked"{% endif %}>
+      <tr{% if not s['is_active'] %} class="blocked"{% endif %} data-href="{{ url_for('admin_sponsor_detail', sid=s['id']) }}">
         <td><strong><a href="{{ url_for('admin_sponsor_detail', sid=s['id']) }}">{{ s['name'] }}</a></strong><br><span class="muted small">{{ s['tagline'] or '—' }}</span></td>
         <td>{{ s['town_name'] or s['town_slug'] or '—' }}</td>
         <td>{{ s['active_since'] or '—' }}</td>
         <td>{{ s['renews_on'] or '—' }}</td>
         <td>{{ s['news_count'] }}</td>
         <td>{% if s['is_active'] %}<span class="status-pill ok">Active</span>{% else %}<span class="status-pill bad">Paused</span>{% endif %}</td>
+        <td><a href="{{ url_for('admin_sponsor_detail', sid=s['id']) }}">Edit</a></td>
       </tr>
     {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <p class="muted">No sponsors yet. <a href="{{ url_for('admin_sponsors') }}">Add one →</a></p>
+  <p class="muted">No sponsors yet.</p>
   {% endif %}
+  <p><a class="btn" href="{{ url_for('admin_sponsors') }}#add">Add sponsor</a></p>
 </div>
 
 <div class="card">

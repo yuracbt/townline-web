@@ -128,10 +128,6 @@ button:hover, .btn:hover { filter: brightness(0.93); }
 .smeta .actions a {
   margin-left: 10px; text-decoration: none; font-size: 1.05rem; color: var(--accent);
 }
-.markread-btn {
-  font-size: .82rem; border: 1px solid var(--accent); border-radius: 999px;
-  padding: 2px 10px; white-space: nowrap;
-}
 .feedlist { list-style: none; padding: 0; }
 .feed {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;

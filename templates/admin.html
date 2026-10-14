@@ -2,6 +2,7 @@
 {% block title %}Admin — TownsLine{% endblock %}
 {% block content %}
 <h1>Administration</h1>
+<nav class="admin-nav"><strong>Administration</strong> · <a href="{{ url_for('admin_sponsors') }}">Sponsors</a></nav>
 
 <div class="card">
   <h2>Users ({{ users|length }})</h2>
@@ -17,7 +18,7 @@
         <td>{{ u['created_str'] }}</td>
         <td>{{ u['stories'] }}</td>
         <td>{{ u['feeds'] }}</td>
-        <td>{% if u['is_blocked'] %}<span class="error">Blocked</span>{% else %}Active{% endif %}</td>
+        <td>{% if u['is_blocked'] %}<span class="status-pill bad">Blocked</span>{% else %}<span class="status-pill ok">Active</span>{% endif %}</td>
         <td>
           {% if u['username'] != admin_username %}
           <form method="post" action="{{ url_for('admin_block') }}" style="display:inline">
@@ -75,7 +76,7 @@ document.querySelectorAll('.expandcell').forEach(function(cell){
         <td>{{ s['active_since'] or '—' }}</td>
         <td>{{ s['renews_on'] or '—' }}</td>
         <td>{{ s['news_count'] }}</td>
-        <td>{% if s['is_active'] %}Active{% else %}<span class="error">Paused</span>{% endif %}</td>
+        <td>{% if s['is_active'] %}<span class="status-pill ok">Active</span>{% else %}<span class="status-pill bad">Paused</span>{% endif %}</td>
       </tr>
     {% endfor %}
     </tbody>

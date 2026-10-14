@@ -61,14 +61,18 @@ document.querySelectorAll('.expandcell').forEach(function(cell){
     cell.querySelector('.expander').textContent = open ? '▾' : '▸';
   });
 });
-document.querySelectorAll('tr[data-href]').forEach(function(row){
-  row.addEventListener('click', function(e){
-    // Clicks on links/buttons/forms inside the row (e.g. Mark paid,
-    // Pause, Delete) do their own thing — only a click on the plain
-    // row itself opens the edit page.
-    if (e.target.closest('a, button, form')) return;
-    window.location.href = row.dataset.href;
-  });
+document.addEventListener('click', function(e){
+  // Row click opens the edit page. Delegated on document (not attached
+  // to each row) because this script runs before the Sponsors table
+  // below it exists in the page — per-row handlers attached here would
+  // match zero rows and silently do nothing.
+  var row = e.target.closest('tr[data-href]');
+  if (!row) return;
+  // Clicks on links/buttons/forms inside the row (e.g. Mark paid,
+  // Pause, Delete) do their own thing — only a click on the plain
+  // row itself opens the edit page.
+  if (e.target.closest('a, button, form')) return;
+  window.location.href = row.dataset.href;
 });
 </script>
 

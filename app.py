@@ -90,6 +90,56 @@ FEED_DIRECTORY = load_directory()
 PLACES_DIRECTORY = load_places_directory()
 TOWNS = load_towns()
 
+
+def load_sponsors():
+    """Sponsored local businesses, keyed by town slug. {} on any problem.
+
+    One file is the source of truth for every surface: the public town
+    page, the in-app Places tab, and news-line promos. Fully manual —
+    a sponsor is added by editing sponsors.json and deploying.
+    Entry shape: {"name", "tagline", "url", "promo": {"title", "text",
+    "url", "expires": "YYYY-MM-DD"}} — promo is optional.
+    """
+    try:
+        with open(os.path.join(BASE_DIR, "sponsors.json")) as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def town_slug_for(town_name):
+    """Match a user's town name to a town-page slug (for sponsors)."""
+    name = (town_name or "").strip().lower()
+    if not name:
+        return ""
+    for slug, t in TOWNS.items():
+        if (t.get("name") or "").lower() == name:
+            return slug
+    # Fallback: slugify (handles towns not in the directory).
+    return re.sub(r"[^a-z0-9]+", "-", name).strip("-")
+
+
+def live_sponsor_promos(town_name):
+    """Sponsors of this town with a live (unexpired) promo, if any."""
+    slug = town_slug_for(town_name)
+    out = []
+    today = datetime.now(timezone.utc).date().isoformat()
+    for s in load_sponsors().get(slug, []) or []:
+        promo = s.get("promo") or {}
+        if not (promo.get("title") or "").strip():
+            continue
+        expires = (promo.get("expires") or "").strip()
+        if expires and expires < today:
+            continue
+        out.append({
+            "name": s.get("name", ""),
+            "url": s.get("url", ""),
+            "key": f"{slug}|{s.get('name', '')}|{promo.get('title', '')}",
+            "promo": promo,
+        })
+    return out
+
 # ---------------------------------------------------------------- db
 
 
@@ -1381,6 +1431,7 @@ def dashboard():
         active_cat=active_cat, unread=unread_total, unread_only=unread_only,
         stories=stories, rel_time=rel_time, page=page, total_pages=total_pages,
         page_url=page_url,
+        sponsor_promos=live_sponsor_promos(settings.get("town_name")),
         unread_on_url=chip_url(category=active_cat or None, unread=True),
         unread_off_url=chip_url(category=active_cat or None, unread=False),
     )
@@ -1636,8 +1687,10 @@ def places_page():
     places = db.execute(
         "SELECT * FROM places WHERE user_id = ? ORDER BY name",
         (user["id"],)).fetchall()
+    sponsors = load_sponsors().get(
+        town_slug_for(settings.get("town_name")), []) or []
     return render_template("places.html", user=user, settings=settings,
-                           places=places)
+                           places=places, sponsors=sponsors)
 
 
 @app.route("/api/places/suggestions")
@@ -1927,14 +1980,7 @@ def town_page(slug):
     town = TOWNS.get(slug)
     if not town:
         return render_template("404.html"), 404
-    # Sponsored local businesses for this town (fully manual: sponsors.json
-    # is edited by hand when a business signs up). Empty list hides the section.
-    sponsors = []
-    try:
-        with open(os.path.join(BASE_DIR, "sponsors.json")) as fh:
-            sponsors = json.load(fh).get(slug, []) or []
-    except (OSError, ValueError):
-        sponsors = []
+    sponsors = load_sponsors().get(slug, []) or []
     return render_template("town.html", town=town, sponsors=sponsors)
 
 

@@ -11,7 +11,7 @@
     <thead><tr><th>Business</th><th>Town</th><th>Email</th><th>Active since</th><th>Renews</th><th>Period</th><th>News</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody>
     {% for s in sponsors %}
-      <tr{% if not s['is_active'] %} class="blocked"{% endif %}>
+      <tr class="{% if not s['is_active'] %}blocked {% endif %}{% if s['is_overdue'] %}overdue{% endif %}">
         <td><strong><a href="{{ url_for('admin_sponsor_detail', sid=s['id']) }}">{{ s['name'] }}</a></strong><br><span class="muted small">{{ s['tagline'] or '—' }}</span></td>
         <td>{{ s['town_name'] or s['town_slug'] or '—' }}</td>
         <td>{{ s['email'] or '—' }}</td>

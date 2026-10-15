@@ -405,3 +405,23 @@ body.login-page .brand { color: #f5b95e; }
   .lp-home-cards { grid-template-columns: 1fr; }
   .lp-home h2 { font-size: 20px; }
 }
+
+/* Sponsor town autocomplete + Global switch */
+label.check input[type="checkbox"] {
+  display: inline-block; width: auto; margin: 0 8px 0 0;
+  vertical-align: -2px; accent-color: var(--accent);
+}
+input:disabled { background: #f1ede5; color: #a39a89; cursor: not-allowed; }
+.town-suggest {
+  border: 1px solid var(--line); border-radius: 6px; background: #fff;
+  margin: -4px 0 10px; overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0,0,0,.08);
+}
+.town-opt {
+  display: block; width: 100%; text-align: left; margin: 0;
+  padding: 8px 12px; background: #fff; border: none;
+  border-bottom: 1px solid #f0ece4; border-radius: 0;
+  font-size: .92rem; color: #2b2620; cursor: pointer;
+}
+.town-opt:last-child { border-bottom: none; }
+.town-opt:hover { background: #faf6ee; filter: none; }

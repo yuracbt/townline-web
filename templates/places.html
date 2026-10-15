@@ -51,7 +51,7 @@
   <h2>Suggested places for <span id="place-town">{{ settings.get('town_name') or 'your town' }}</span></h2>
   <button type="button" id="place-rethink" class="btn ghost small" title="Scan again from scratch, ignoring the cached results">↻ Rethink</button>
 </div>
-<p class="muted small" id="place-status">Scanning for local places…</p>
+<p class="muted small busy" id="place-status">Scanning for local places…</p>
 <ul class="feedlist" id="place-list"></ul>
 
 <script>
@@ -60,6 +60,7 @@ const status = document.getElementById('place-status');
 const rethinkBtn = document.getElementById('place-rethink');
 async function loadSuggestions(refresh) {
   box.innerHTML = '';
+  status.classList.add('busy');
   status.textContent = refresh ? 'Re-scanning for local places…' : 'Scanning for local places…';
   try {
     const url = '{{ url_for("api_places_suggestions") }}' + (refresh ? '?refresh=1' : '');
@@ -69,11 +70,13 @@ async function loadSuggestions(refresh) {
     const townEl = document.getElementById('place-town');
     if (townEl && data.town) townEl.textContent = data.town;
     if (!items.length) {
+      status.classList.remove('busy');
       status.textContent = data.town
         ? 'No places found for ' + data.town + ' yet.'
         : 'Set your town in Settings to get place suggestions.';
       return;
     }
+    status.classList.remove('busy');
     status.textContent = items.length + ' suggestion(s) for ' + (data.town || 'your town') + ':';
     for (const p of items) {
       const li = document.createElement('li');
@@ -125,6 +128,7 @@ async function loadSuggestions(refresh) {
       box.appendChild(li);
     }
   } catch (e) {
+    status.classList.remove('busy');
     status.textContent = 'Could not scan for places right now — try again later.';
   }
 }

@@ -1,5 +1,5 @@
 <h2>Suggested for <span id="suggest-town">{{ settings.get('town_name') or 'your town' }}</span></h2>
-<p class="muted small" id="suggest-status">Checking which feeds work…</p>
+<p class="muted small busy" id="suggest-status">Checking which feeds work…</p>
 <ul class="feedlist" id="suggest-list"></ul>
 
 <script>
@@ -7,6 +7,7 @@ async function loadSuggestions() {
   const box = document.getElementById('suggest-list');
   const status = document.getElementById('suggest-status');
   box.innerHTML = '';
+  status.classList.add('busy');
   status.textContent = 'Checking which feeds work…';
   try {
     const r = await fetch('{{ url_for("api_suggestions") }}');
@@ -15,12 +16,16 @@ async function loadSuggestions() {
     const townEl = document.getElementById('suggest-town');
     if (townEl && data.town) townEl.textContent = data.town;
     if (!items.length) {
+      status.classList.remove('busy');
       status.textContent = data.town
         ? 'No new feeds found for ' + data.town + ' — the directory grows with each release.'
         : 'Set your town above to get feed suggestions.';
       return;
     }
+    status.classList.remove('busy');
     status.textContent = items.length + ' suggestion(s) for ' + (data.town || 'your town') + ':';
+    var near = document.getElementById('scan-near-status');
+    if (near) near.classList.remove('busy');
     for (const f of items) {
       const li = document.createElement('li');
       li.className = 'feed';
@@ -63,7 +68,10 @@ async function loadSuggestions() {
       box.appendChild(li);
     }
   } catch (e) {
+    status.classList.remove('busy');
     status.textContent = 'Could not check feeds right now — try again later.';
+    var near2 = document.getElementById('scan-near-status');
+    if (near2) near2.classList.remove('busy');
   }
 }
 document.addEventListener('DOMContentLoaded', loadSuggestions);

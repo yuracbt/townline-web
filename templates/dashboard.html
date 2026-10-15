@@ -178,6 +178,7 @@
         .then(function (data) {
           if (data.status === 'done') {
             clearInterval(timer);
+            banner.classList.remove('busy');
             refreshStories();
           } else if (data.status !== 'scanning' || tries >= 150) {
             clearInterval(timer); // idle or ~5 min timeout: leave banner as-is

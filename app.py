@@ -162,17 +162,21 @@ def haversine_km(lat1, lon1, lat2, lon2):
 
 
 def get_sponsors_for_town(slug):
-    """Active sponsors listed under this town slug (public town page)."""
+    """Active sponsors listed under this town slug (public town page).
+
+    Global (Elite) sponsors are shown on every town page."""
     db = get_db()
     return [dict(r) for r in db.execute(
-        "SELECT * FROM sponsors WHERE is_active = 1 AND town_slug = ? "
+        "SELECT * FROM sponsors WHERE is_active = 1 "
+        "AND (town_slug = ? OR is_global = 1) "
         "ORDER BY name", (slug,)).fetchall()]
 
 
 def get_sponsors_for_user(settings):
     """Active sponsors for the user's own town, or within the sponsor's
     radius of the user's coordinates — so a user in Calgary or Balzac
-    also sees an Airdrie business."""
+    also sees an Airdrie business. Global (Elite) sponsors are shown
+    to everyone."""
     db = get_db()
     user_slug = town_slug_for(settings.get("town_name"))
     ulat, ulon = settings.get("lat"), settings.get("lon")
@@ -181,6 +185,9 @@ def get_sponsors_for_user(settings):
             "SELECT * FROM sponsors WHERE is_active = 1 ORDER BY name"
     ).fetchall():
         d = dict(r)
+        if d.get("is_global"):
+            out.append(d)
+            continue
         if d["town_slug"] == user_slug:
             out.append(d)
             continue
@@ -247,12 +254,19 @@ def send_sponsor_welcome(sponsor):
     period = sponsor.get("billing_period") or 1
     period_word = {1: "month", 3: "3 months", 6: "6 months",
                    12: "1 year"}.get(period, f"{period} months")
+    if sponsor.get("is_global"):
+        reach_line = ("Your Elite listing is featured on every town page, "
+                      "in the Places tab, and your news appears in the "
+                      "Business tile for readers everywhere.")
+    else:
+        reach_line = (f"Your business is now featured on your town's page, "
+                      f"in the Places tab, and your news appears in the "
+                      f"Business tile for readers in "
+                      f"{sponsor.get('town_name') or 'your town'} and nearby.")
     body = (
         f"Hi {sponsor['name']},\n\n"
         f"Welcome to TownsLine! Your featured listing is live.\n\n"
-        f"Your business is now featured on your town's page, in the "
-        f"Places tab, and your news appears in the Business tile for "
-        f"readers in {sponsor.get('town_name') or 'your town'} and nearby.\n\n"
+        f"{reach_line}\n\n"
         f"Manage your own news here (keep this link private — anyone "
         f"with it can post news as your business):\n{portal}\n\n"
         f"You can post up to {NEWS_MONTHLY_LIMIT} news items per "
@@ -303,6 +317,13 @@ def send_sponsor_deleted(sponsor, reason):
 
 def send_sponsor_news_added(sponsor, news):
     """News-is-live notice with the item's details. Admin in BCC."""
+    if sponsor.get("is_global"):
+        reach_line = ("It now shows as a Sponsored row on the Business tile "
+                      "for readers everywhere.")
+    else:
+        reach_line = (f"It now shows as a Sponsored row on the Business tile "
+                      f"for readers in "
+                      f"{sponsor.get('town_name') or 'your town'} and nearby.")
     body = (
         f"Hi {sponsor['name']},\n\n"
         f"New news is live on your TownsLine listing:\n\n"
@@ -310,8 +331,7 @@ def send_sponsor_news_added(sponsor, news):
         f"Text: {news.get('text') or '—'}\n"
         f"Link: {news.get('url') or sponsor['url']}\n"
         f"Expires: {news.get('expires') or 'no expiry'}\n\n"
-        f"It now shows as a Sponsored row on the Business tile for "
-        f"readers in {sponsor.get('town_name') or 'your town'} and nearby.\n\n"
+        f"{reach_line}\n\n"
         f"Questions? Just reply to this email.\n\n— TownsLine"
     )
     return send_email(sponsor["email"],
@@ -378,11 +398,13 @@ def send_renewal_notices():
             "AND renews_on = ? AND notice_sent_for != renews_on",
             (target,)).fetchall():
         portal = SITE_URL.rstrip("/") + "/s/" + s["code"]
+        featured_on = ("every town page" if s["is_global"]
+                       else "your town's page")
         body = (
             f"Hi {s['name']},\n\n"
             f"Your TownsLine featured listing renews on {s['renews_on']} "
             f"— 3 days from now.\n\n"
-            f"Your listing stays live: featured on your town's page, in "
+            f"Your listing stays live: featured on {featured_on}, in "
             f"the Places tab, and your news on the Business tile.\n\n"
             f"Want to update your news before then? Manage it here:\n"
             f"{portal}\n\n"
@@ -591,6 +613,14 @@ def init_db():
         "ALTER TABLE sponsors ADD COLUMN active_since TEXT DEFAULT ''",
         "ALTER TABLE sponsors ADD COLUMN renews_on TEXT DEFAULT ''",
         "ALTER TABLE sponsors ADD COLUMN notice_sent_for TEXT DEFAULT ''",
+    ):
+        try:
+            db.execute(ddl)
+        except sqlite3.OperationalError:
+            pass  # column already there
+    # Global (Elite) sponsors: shown to everyone; town and reach unused.
+    for ddl in (
+        "ALTER TABLE sponsors ADD COLUMN is_global INTEGER DEFAULT 0",
     ):
         try:
             db.execute(ddl)
@@ -1779,6 +1809,14 @@ def _sponsor_coords(town, slug):
     return None, None
 
 
+def _form_float(value):
+    """Float from a form field, or None when blank/invalid."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 @app.route("/admin/sponsors/add", methods=["POST"])
 @login_required
 @admin_required
@@ -1790,12 +1828,16 @@ def admin_sponsor_add():
     url = request.form.get("url", "").strip()
     town = request.form.get("town", "").strip()
     email = request.form.get("email", "").strip()
+    is_global = request.form.get("is_global") == "on"
     try:
         radius = float(request.form.get("radius_km", "30") or 30)
     except ValueError:
         radius = 30.0
-    if not name or not url or not town:
-        flash("Name, website and town are required.")
+    if not name or not url:
+        flash("Name and website are required.")
+        return redirect(url_for("admin_sponsors"))
+    if not is_global and not town:
+        flash("Town is required unless the sponsor is Global.")
         return redirect(url_for("admin_sponsors"))
     if not email or not valid_email(email):
         flash("A valid sponsor email is required.")
@@ -1806,8 +1848,16 @@ def admin_sponsor_add():
         billing_period = 1
     if billing_period not in (1, 3, 6, 12):
         billing_period = 1
-    slug = town_slug_for(town)
-    lat, lon = _sponsor_coords(town, slug)
+    if is_global:
+        slug, town, lat, lon, radius = "", "", None, None, 0
+    else:
+        slug = town_slug_for(town)
+        flat = _form_float(request.form.get("town_lat"))
+        flon = _form_float(request.form.get("town_lon"))
+        if flat is not None and flon is not None:
+            lat, lon = flat, flon  # picked from autocomplete — exact coords
+        else:
+            lat, lon = _sponsor_coords(town, slug)
     today = datetime.now(timezone.utc).date()
     code = secrets.token_urlsafe(12)
     db = get_db()
@@ -1815,12 +1865,13 @@ def admin_sponsor_add():
         "INSERT INTO sponsors (name, tagline, url, town_slug, town_name, "
         "lat, lon, radius_km, email, code, active_since, renews_on, "
         "billing_period, news_period_start, last_paid_on, "
-        "is_active, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
+        "is_global, is_active, created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
         (name, tagline, url, slug, town, lat, lon, radius, email, code,
          today.isoformat(),
          add_months(today, billing_period).isoformat(),
          billing_period, int(time.time()), today.isoformat(),
-         int(time.time())),
+         1 if is_global else 0, int(time.time())),
     )
     db.commit()
     sponsor = dict(db.execute("SELECT * FROM sponsors WHERE id = ?",
@@ -1850,6 +1901,7 @@ def admin_sponsor_edit(sid):
     email = request.form.get("email", "").strip()
     active_since = request.form.get("active_since", "").strip()
     renews_on = request.form.get("renews_on", "").strip()
+    is_global = request.form.get("is_global") == "on"
     try:
         radius = float(request.form.get("radius_km", "30") or 30)
     except ValueError:
@@ -1860,17 +1912,27 @@ def admin_sponsor_edit(sid):
         billing_period = 1
     if billing_period not in (1, 3, 6, 12):
         billing_period = 1
-    if not name or not url or not town:
-        flash("Name, website and town are required.")
+    if not name or not url:
+        flash("Name and website are required.")
+        return redirect(url_for("admin_sponsor_detail", sid=sid))
+    if not is_global and not town:
+        flash("Town is required unless the sponsor is Global.")
         return redirect(url_for("admin_sponsor_detail", sid=sid))
     if not email or not valid_email(email):
         flash("A valid sponsor email is required.")
         return redirect(url_for("admin_sponsor_detail", sid=sid))
-    slug = town_slug_for(town)
-    if slug != row["town_slug"]:
-        lat, lon = _sponsor_coords(town, slug)
+    if is_global:
+        slug, town, lat, lon, radius = "", "", None, None, 0
     else:
-        lat, lon = row["lat"], row["lon"]
+        slug = town_slug_for(town)
+        flat = _form_float(request.form.get("town_lat"))
+        flon = _form_float(request.form.get("town_lon"))
+        if flat is not None and flon is not None:
+            lat, lon = flat, flon  # picked from autocomplete — exact coords
+        elif slug != row["town_slug"]:
+            lat, lon = _sponsor_coords(town, slug)
+        else:
+            lat, lon = row["lat"], row["lon"]
     # What exactly changed — the business gets a notice listing only
     # the fields that actually changed.
     period_labels = {1: "Monthly", 3: "Every 3 months",
@@ -1881,6 +1943,8 @@ def admin_sponsor_edit(sid):
         ("Description", row["tagline"] or "", tagline),
         ("Website", row["url"], url),
         ("Town", row["town_name"] or "", town),
+        ("Global", "Yes" if row["is_global"] else "No",
+         "Yes" if is_global else "No"),
         ("Reach (km)", str(row["radius_km"]), str(radius)),
         ("Email", row["email"] or "", email),
         ("Active since", row["active_since"] or "", active_since),
@@ -1894,10 +1958,11 @@ def admin_sponsor_edit(sid):
     db.execute(
         "UPDATE sponsors SET name = ?, tagline = ?, url = ?, "
         "town_slug = ?, town_name = ?, lat = ?, lon = ?, radius_km = ?, "
-        "email = ?, active_since = ?, renews_on = ?, billing_period = ? "
-        "WHERE id = ?",
+        "email = ?, active_since = ?, renews_on = ?, billing_period = ?, "
+        "is_global = ? WHERE id = ?",
         (name, tagline, url, slug, town, lat, lon, radius, email,
-         active_since, renews_on, billing_period, sid),
+         active_since, renews_on, billing_period,
+         1 if is_global else 0, sid),
     )
     db.commit()
     if not changes:

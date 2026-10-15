@@ -1321,35 +1321,137 @@ def discover_osm_places(lat, lon, town):
     return found
 
 
-def seed_default_feeds(user_id, town_name, state="", country_code=""):
-    """Seed sensible starting feeds for a town: curated directory matches,
-    plus a Google News search for the town name as a generic fallback."""
+# ---------------------------------------------------------------- town feeds
+
+# Per-category RSS feeds auto-generated for any town (Google News
+# searches): Local, Business, Art, Education, Entertainment, News.
+TOWN_FEED_CATEGORIES = [
+    ("Local", ""),
+    ("Business", "business"),
+    ("Art", "art"),
+    ("Education", "education"),
+    ("Entertainment", "entertainment"),
+    ("News", "news"),
+]
+
+
+def category_feeds_for_town(town_name, country_code=""):
+    """Per-category Google News RSS feeds for a town."""
+    name = (town_name or "").strip()
+    if not name:
+        return []
+    cc = (country_code or "US").upper()
+    feeds = []
+    for label, extra in TOWN_FEED_CATEGORIES:
+        q = name + (" " + extra if extra else "")
+        url = ("https://news.google.com/rss/search?q="
+               + urllib.parse.quote(q)
+               + f"&hl=en&gl={cc}&ceid={cc}:en")
+        feeds.append({"name": f"{name} — {label}", "url": url})
+    return feeds
+
+
+def find_town_entry(town_name="", lat=None, lon=None):
+    """Best towns.json entry for a town: exact slug/name match first,
+    otherwise the nearest town by coordinates."""
+    if town_name:
+        slug = town_slug_for(town_name)
+        if slug in TOWNS:
+            return TOWNS[slug]
+        low = town_name.strip().lower()
+        for t in TOWNS.values():
+            if t.get("name", "").lower() == low:
+                return t
+    if lat is not None and lon is not None:
+        best, best_d = None, None
+        for t in TOWNS.values():
+            tlat, tlon = t.get("lat"), t.get("lon")
+            if tlat is None or tlon is None:
+                continue
+            d = haversine_km(lat, lon, tlat, tlon)
+            if best_d is None or d < best_d:
+                best, best_d = t, d
+        return best
+    return None
+
+
+def seed_places_for_town(user_id, town_name):
+    """Preload curated directory places for the town into the user's
+    Places tab. Returns the number added."""
     db = get_db()
     have = {norm_url(r["url"]) for r in
-            db.execute("SELECT url FROM feeds WHERE user_id = ?",
+            db.execute("SELECT url FROM places WHERE user_id = ?",
                        (user_id,)).fetchall()}
     added = 0
-    for f in suggested_for_town(town_name, state, country_code):
-        if norm_url(f["url"]) not in have:
+    for p in suggested_places_for_town(town_name):
+        if norm_url(p["url"]) not in have:
             db.execute(
-                "INSERT INTO feeds (user_id, name, url, enabled) VALUES (?,?,?,1)",
-                (user_id, f["name"], f["url"]),
+                "INSERT INTO places (user_id, name, url) VALUES (?,?,?)",
+                (user_id, p["name"], p["url"]),
             )
-            have.add(norm_url(f["url"]))
-            added += 1
-    if added == 0 and town_name:
-        cc = (country_code or "ca").upper()
-        gnews = ("https://news.google.com/rss/search?q="
-                 + urllib.parse.quote(town_name)
-                 + f"&hl=en&gl={cc}&ceid={cc}:en")
-        if norm_url(gnews) not in have:
-            db.execute(
-                "INSERT INTO feeds (user_id, name, url, enabled) VALUES (?,?,?,1)",
-                (user_id, f"Google News — {town_name}", gnews),
-            )
+            have.add(norm_url(p["url"]))
             added += 1
     db.commit()
     return added
+
+
+def seed_default_feeds(user_id, town_name, state="", country_code="",
+                       lat=None, lon=None):
+    """Seed sensible starting feeds for a town, from the towns database:
+    the matched town's curated feeds (exact match, else the nearest town
+    by coordinates), per-category RSS for the user's own town name, plus
+    curated directory matches. A Google News search for the town name is
+    the generic fallback when nothing else matched.
+
+    Returns (feeds_added, matched_town_name_or_None)."""
+    db = get_db()
+
+    def feed_key(url):
+        # Google News searches differ only by query string — keep it, or
+        # all per-category feeds would dedupe to one (norm_url drops
+        # the query, which is right for ordinary feeds).
+        u = (url or "").strip().lower()
+        if "news.google.com/rss" in u:
+            return u
+        return norm_url(url)
+
+    have = {feed_key(r["url"]) for r in
+            db.execute("SELECT url FROM feeds WHERE user_id = ?",
+                       (user_id,)).fetchall()}
+    added = 0
+
+    def add_feed(name, url):
+        nonlocal added
+        if url and feed_key(url) not in have:
+            db.execute(
+                "INSERT INTO feeds (user_id, name, url, enabled) "
+                "VALUES (?,?,?,1)",
+                (user_id, name, url),
+            )
+            have.add(feed_key(url))
+            added += 1
+
+    entry = find_town_entry(town_name, lat, lon)
+    entry_cc = (entry.get("country_code") if entry else "") or ""
+    if entry:
+        for f in entry.get("feeds", []):
+            add_feed(f.get("name") or entry.get("name"), f.get("url"))
+    # Per-category RSS always reflects the user's own town name, even
+    # when the curated feeds came from the nearest database town.
+    for f in category_feeds_for_town(
+            town_name or (entry.get("name") if entry else ""),
+            country_code or entry_cc):
+        add_feed(f["name"], f["url"])
+    for f in suggested_for_town(town_name, state, country_code):
+        add_feed(f.get("name"), f.get("url"))
+    if added == 0 and town_name:
+        cc = (country_code or entry_cc or "CA").upper()
+        gnews = ("https://news.google.com/rss/search?q="
+                 + urllib.parse.quote(town_name)
+                 + f"&hl=en&gl={cc}&ceid={cc}:en")
+        add_feed(f"Google News — {town_name}", gnews)
+    db.commit()
+    return added, (entry.get("name") if entry else None)
 
 
 # ---------------------------------------------------------------- scanner
@@ -1459,11 +1561,17 @@ def scanner_loop():
 def register():
     if current_user():
         return redirect(url_for("dashboard"))
+    # Town prepopulation: arriving from a town page (?town=<slug>) signs
+    # the user up with that town's feeds and places already loaded.
+    town = None
+    if request.method == "GET":
+        town = TOWNS.get(request.args.get("town", "").strip())
     error = None
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         email = request.form.get("email", "").strip()
         password = request.form.get("password", "")
+        town = TOWNS.get(request.form.get("town_slug", "").strip())
         db = get_db()
         pw_problems = password_problems(password)
         if not username or not email or not password:
@@ -1484,17 +1592,38 @@ def register():
             )
             uid = cur.lastrowid
             db.execute("INSERT INTO settings (user_id) VALUES (?)", (uid,))
+            if town:
+                # Town preloaded: set it and seed its feeds + places, then
+                # scan right away — the inbox is ready, no Settings detour.
+                db.execute(
+                    "UPDATE settings SET town_name = ?, lat = ?, lon = ?, "
+                    "state = ?, country_code = ? WHERE user_id = ?",
+                    (town["name"], town.get("lat"), town.get("lon"),
+                     town.get("region", ""), town.get("country_code", ""),
+                     uid),
+                )
+                seed_default_feeds(
+                    uid, town["name"], state=town.get("region", ""),
+                    country_code=town.get("country_code", ""),
+                    lat=town.get("lat"), lon=town.get("lon"))
+                seed_places_for_town(uid, town["name"])
             db.commit()
-            # Blank slate: no town, no feeds. The user picks their location
-            # in Settings, which seeds matching feeds for that town.
             notify_admin(
                 f"New TownsLine account: {username}",
                 f"A new user just registered on TownsLine.\n\n"
                 f"Username: {username}\nEmail: {email}\n",
             )
             session["user_id"] = uid
+            if town:
+                threading.Thread(target=scan_user, args=(uid,),
+                                 daemon=True).start()
+                flash(f"Welcome! {town['name']} news, feeds and places "
+                      f"are all set up for you.")
+                return redirect(url_for("dashboard"))
+            # Blank slate: no town, no feeds. The user picks their location
+            # in Settings, which seeds matching feeds for that town.
             return redirect(url_for("settings_page"))
-    return render_template("register.html", error=error)
+    return render_template("register.html", error=error, town=town)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -2944,11 +3073,16 @@ def set_location():
              state, country_code, user["id"]),
         )
         db.commit()
-        seed_default_feeds(user["id"], town, state=state,
-                           country_code=country_code)
+        added, matched = seed_default_feeds(
+            user["id"], town, state=state, country_code=country_code,
+            lat=float(lat or 0) or None, lon=float(lon or 0) or None)
         threading.Thread(target=scan_user, args=(user["id"],),
                          daemon=True).start()
-        flash(f"Town set to {town} — here are feeds we found for it.")
+        if matched and matched.lower() != town.lower():
+            flash(f"Town set to {town} — we started you with feeds "
+                  f"from nearby {matched}.")
+        else:
+            flash(f"Town set to {town} — here are feeds we found for it.")
     return redirect(url_for("settings_page"))
 
 
@@ -2991,7 +3125,8 @@ def locate():
     )
     db.commit()
     seed_default_feeds(user["id"], town, state=state,
-                       country_code=country_code)
+                       country_code=country_code,
+                       lat=float(lat), lon=float(lon))
     threading.Thread(target=scan_user, args=(user["id"],),
                      daemon=True).start()
     return jsonify({"ok": True, "town": town})

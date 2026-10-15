@@ -46,6 +46,20 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev-key-change-me")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1,
                         x_prefix=1)
 
+# Canonical host is the apex domain. 301-redirect www -> apex (preserving
+# path and query) so every page exists in exactly one copy — otherwise
+# Google Search Console flags "Duplicate, Google chose different canonical
+# than user" and splits indexing between the two hosts.
+@app.before_request
+def _www_to_apex():
+    host = request.host.split(":")[0].lower()
+    if host == "www.townsline.com":
+        qs = request.query_string.decode("utf-8", "ignore")
+        target = "https://townsline.com" + request.path
+        if qs:
+            target += "?" + qs
+        return redirect(target, code=301)
+
 UA = "TownsLineWeb/1.0"
 FEED_TIMEOUT = 10  # seconds; be polite to other people's servers
 

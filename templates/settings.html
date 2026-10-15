@@ -72,11 +72,14 @@
 document.getElementById('scan-near-btn').addEventListener('click', () => {
   const status = document.getElementById('scan-near-status');
   if (!navigator.geolocation) {
+    status.classList.remove('busy');
     status.textContent = 'This browser does not support location.';
     return;
   }
+  status.classList.add('busy');
   status.textContent = 'Getting your location…';
   navigator.geolocation.getCurrentPosition(async (pos) => {
+    status.classList.add('busy');
     status.textContent = 'Looking up your town…';
     try {
       const r = await fetch('{{ url_for("locate") }}', {
@@ -87,15 +90,19 @@ document.getElementById('scan-near-btn').addEventListener('click', () => {
       const data = await r.json();
       if (data.ok) {
         document.getElementById('town-current').textContent = data.town;
+        status.classList.add('busy');
         status.textContent = 'Found you in ' + data.town + ' — loading feed suggestions…';
         loadSuggestions();
       } else {
+        status.classList.remove('busy');
         status.textContent = 'Could not determine your town — try searching below.';
       }
     } catch (e) {
+      status.classList.remove('busy');
       status.textContent = 'Lookup failed — try searching below.';
     }
   }, () => {
+    status.classList.remove('busy');
     status.textContent = 'Location access was denied — search for your town instead.';
   }, { timeout: 10000 });
 });

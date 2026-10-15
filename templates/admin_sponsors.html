@@ -13,7 +13,7 @@
     {% for s in sponsors %}
       <tr class="{% if not s['is_active'] %}blocked {% endif %}{% if s['is_overdue'] %}overdue{% endif %}">
         <td><strong><a href="{{ url_for('admin_sponsor_detail', sid=s['id']) }}">{{ s['name'] }}</a></strong><br><span class="muted small">{{ s['tagline'] or '—' }}</span></td>
-        <td>{{ s['town_name'] or s['town_slug'] or '—' }}</td>
+        <td>{% if s['is_global'] %}<span class="pill">Global</span>{% else %}{{ s['town_name'] or s['town_slug'] or '—' }}{% endif %}</td>
         <td>{{ s['email'] or '—' }}</td>
         <td>{{ s['active_since'] or '—' }}</td>
         <td>{{ s['renews_on'] or '—' }}</td>
@@ -46,8 +46,12 @@
     <label>Name <input name="name" placeholder="e.g. North Main Family Dental" required></label>
     <label>One-line description <input name="tagline" placeholder="e.g. Family dental care in Airdrie"></label>
     <label>Website URL <input name="url" type="url" placeholder="https://…" required></label>
-    <label>Town <input name="town" placeholder="e.g. Airdrie" required></label>
-    <label>Reach (km) — users within this distance of the business also see it <input name="radius_km" type="number" min="0" step="1" value="30"></label>
+    <label>Town <input name="town" id="town-input" placeholder="e.g. Airdrie" autocomplete="off" required></label>
+    <input type="hidden" name="town_lat" id="town-lat">
+    <input type="hidden" name="town_lon" id="town-lon">
+    <div id="town-suggest" class="town-suggest" hidden></div>
+    <label class="check"><input type="checkbox" name="is_global" id="global-check"> Global — Elite sponsor, shown to everyone (town and reach are not used)</label>
+    <label>Reach (km) — users within this distance of the business also see it <input name="radius_km" id="reach-input" type="number" min="0" step="1" value="30"></label>
     <label>Business email (required — welcome email, renewal notices and their own news page go here) <input name="email" type="email" placeholder="owner@business.com" required></label>
     <label>Payment period
       <select name="billing_period">
@@ -59,6 +63,67 @@
     </label>
     <button type="submit" class="btn">Add sponsor</button>
   </form>
+  <script>
+  (function () {
+    var townInput = document.getElementById('town-input');
+    var latInput = document.getElementById('town-lat');
+    var lonInput = document.getElementById('town-lon');
+    var box = document.getElementById('town-suggest');
+    var globalCheck = document.getElementById('global-check');
+    var reachInput = document.getElementById('reach-input');
+    function applyGlobal() {
+      var g = globalCheck.checked;
+      townInput.disabled = g;
+      townInput.required = !g;
+      reachInput.disabled = g;
+      box.hidden = true;
+    }
+    globalCheck.addEventListener('change', applyGlobal);
+    applyGlobal();
+    var timer = null;
+    townInput.addEventListener('input', function () {
+      latInput.value = '';
+      lonInput.value = '';
+      clearTimeout(timer);
+      var q = townInput.value.trim();
+      if (q.length < 2 || townInput.disabled) { box.hidden = true; return; }
+      timer = setTimeout(function () {
+        fetch('/api/geocode?q=' + encodeURIComponent(q))
+          .then(function (r) { return r.json(); })
+          .then(function (items) {
+            if (!Array.isArray(items) || !items.length) { box.hidden = true; return; }
+            box.innerHTML = '';
+            items.slice(0, 6).forEach(function (it) {
+              var label = it.city || (it.display_name || '').split(',')[0] || q;
+              var sub = [it.state, (it.country_code || '').toUpperCase()].filter(Boolean).join(', ');
+              var b = document.createElement('button');
+              b.type = 'button';
+              b.className = 'town-opt';
+              var strong = document.createElement('strong');
+              strong.textContent = label;
+              var span = document.createElement('span');
+              span.className = 'muted small';
+              span.textContent = sub ? ' — ' + sub : '';
+              b.appendChild(strong);
+              b.appendChild(span);
+              b.addEventListener('click', function () {
+                townInput.value = label;
+                latInput.value = it.lat || '';
+                lonInput.value = it.lon || '';
+                box.hidden = true;
+              });
+              box.appendChild(b);
+            });
+            box.hidden = false;
+          })
+          .catch(function () { box.hidden = true; });
+      }, 300);
+    });
+    document.addEventListener('click', function (e) {
+      if (e.target !== townInput && !box.contains(e.target)) box.hidden = true;
+    });
+  })();
+  </script>
   <p class="muted small">Sponsors go live immediately — no deploy needed. The business gets a welcome email with their personal news link. Active since is today, renewal is one payment period out (both editable on the sponsor's page).</p>
 </div>
 {% endblock %}

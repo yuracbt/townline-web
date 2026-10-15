@@ -367,3 +367,21 @@ body.login-page .brand { color: #f5b95e; }
 .sponsor-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .sponsor-item:last-child { border-bottom: none; }
 .sponsor-name { font-weight: 600; }
+
+/* ---- Busy spinner: shown in front of background-work status messages ---- */
+.busy::before {
+  content: "";
+  display: inline-block;
+  width: .8em;
+  height: .8em;
+  margin-right: .45em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  vertical-align: -.1em;
+  animation: tl-spin .8s linear infinite;
+}
+@keyframes tl-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .busy::before { animation: none; }
+}

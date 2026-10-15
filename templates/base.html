@@ -40,7 +40,7 @@
 {% with messages = get_flashed_messages(with_categories=true) %}
 {% if messages %}
 <ul class="flashes">
-{% for cat, m in messages %}<li{% if cat == 'scan' %} id="scan-banner"{% endif %}>{{ m }}</li>{% endfor %}
+{% for cat, m in messages %}<li{% if cat == 'scan' %} id="scan-banner" class="busy"{% endif %}>{{ m }}</li>{% endfor %}
 </ul>
 {% endif %}
 {% endwith %}

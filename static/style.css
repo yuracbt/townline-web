@@ -231,22 +231,22 @@ body.login-page .brand { color: #f5b95e; }
   color: #fff; display: flex; align-items: center;
 }
 .lp-inner {
-  display: flex; gap: 56px; align-items: center;
-  max-width: 1180px; margin: 0 auto; padding: 72px 40px 44px; width: 100%;
+  display: flex; gap: 48px; align-items: center;
+  max-width: 1180px; margin: 0 auto; padding: 56px 40px 32px; width: 100%;
 }
 .lp-pitch { flex: 1.4; }
 .lp-kicker {
-  display: inline-block; font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+  display: inline-block; font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
   color: #f5c98a; border: 1px solid rgba(245,201,138,.5);
-  padding: 7px 14px; border-radius: 999px; margin-bottom: 22px;
+  padding: 5px 12px; border-radius: 999px; margin-bottom: 14px;
 }
-.lp-pitch h1 { font-size: 44px; line-height: 1.08; letter-spacing: -1px; margin: 0 0 16px; color: #fff; }
+.lp-pitch h1 { font-size: 36px; line-height: 1.1; letter-spacing: -1px; margin: 0 0 12px; color: #fff; }
 .lp-pitch h1 em { font-style: normal; color: #f5b95e; }
-.lp-sub { font-size: 16px; line-height: 1.6; color: #f3e2c8; max-width: 540px; margin: 0 0 22px; }
-.lp-cta { display: flex; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; }
+.lp-sub { font-size: 15px; line-height: 1.6; color: #f3e2c8; max-width: 540px; margin: 0 0 16px; }
+.lp-cta { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .lp-btn {
-  display: inline-block; padding: 13px 26px; border-radius: 10px;
-  font-weight: 700; font-size: 15px; text-decoration: none; cursor: pointer; border: none;
+  display: inline-block; padding: 11px 22px; border-radius: 10px;
+  font-weight: 700; font-size: 14px; text-decoration: none; cursor: pointer; border: none;
 }
 .lp-btn-solid { background: #f5b95e; color: #3a2208; }
 .lp-btn-solid:hover { background: #ffc86e; }
@@ -254,26 +254,26 @@ body.login-page .brand { color: #f5b95e; }
 .lp-btn-ghost:hover { border-color: #fff; }
 .lp-btn-block { width: 100%; text-align: center; }
 .lp-proof { display: flex; gap: 22px; margin-top: 4px; }
-.lp-proof b { display: block; font-size: 20px; color: #fff; }
-.lp-proof span { font-size: 12px; color: #f3e2c8; }
+.lp-proof b { display: block; font-size: 18px; color: #fff; }
+.lp-proof span { font-size: 11px; color: #f3e2c8; }
 .lp-card {
   flex: 1; background: #fffdf8; color: #2b2620; border-radius: 16px;
-  padding: 34px 32px; max-width: 380px; width: 100%;
+  padding: 26px 28px; max-width: 380px; width: 100%;
   box-shadow: 0 24px 70px rgba(0,0,0,.35);
 }
-.lp-card h2 { font-size: 22px; margin: 0 0 18px; color: #2b2620; }
+.lp-card h2 { font-size: 20px; margin: 0 0 14px; color: #2b2620; }
 .lp-card .lp-btn-solid { background: #c96a1e; color: #fff; }
 .lp-card .lp-btn-solid:hover { background: #b25d18; }
-.lp-field { display: block; margin: 0 0 14px; font-size: 13px; font-weight: 600; color: #5c554a; }
+.lp-field { display: block; margin: 0 0 10px; font-size: 13px; font-weight: 600; color: #5c554a; }
 .lp-field input {
-  display: block; width: 100%; margin-top: 6px; padding: 12px 14px;
+  display: block; width: 100%; margin-top: 6px; padding: 10px 12px;
   border: 1px solid #ddd5c4; border-radius: 9px; font-size: 15px; background: #fff; color: #2b2620;
 }
-.lp-fine { margin-top: 14px; font-size: 13px; color: #8a8072; text-align: center; }
+.lp-fine { margin-top: 10px; font-size: 12px; color: #8a8072; text-align: center; }
 .lp-fine a { color: #c96a1e; }
 .lp-card .error { margin: 0 0 14px; }
 @media (max-width: 900px) {
-  .lp-inner { flex-direction: column; padding: 88px 24px 48px; gap: 40px; }
+  .lp-inner { flex-direction: column; padding: 64px 24px 32px; gap: 32px; }
   .lp-pitch h1 { font-size: 36px; }
   .lp-card { max-width: 480px; }
 }
@@ -281,14 +281,14 @@ body.login-page .brand { color: #f5b95e; }
 /* ---------- Login page video modal ---------- */
 .lp-watch {
   display: inline-flex; align-items: center; gap: 9px;
-  color: #f5c98a; font-weight: 700; font-size: 15px; text-decoration: none;
-  margin: 2px 0 34px;
+  color: #f5c98a; font-weight: 700; font-size: 14px; text-decoration: none;
+  margin: 2px 0 18px;
 }
 .lp-watch:hover { color: #fff; }
 .lp-play {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; border-radius: 50%;
-  border: 1.5px solid #f5c98a; font-size: 13px; padding-left: 2px;
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1.5px solid #f5c98a; font-size: 12px; padding-left: 2px;
 }
 .lp-watch-time { font-weight: 400; color: #d9c3a3; font-size: 13px; }
 .lp-modal {
@@ -388,20 +388,20 @@ body.login-page .brand { color: #f5b95e; }
 
 /* ---- Login page: "make yourself at home" trust section ---- */
 .lp-home { background: linear-gradient(180deg, #170f07 0%, #241708 100%); color: #fff; }
-.lp-home-inner { max-width: 1180px; margin: 0 auto; padding: 40px 40px 52px; }
-.lp-home h2 { font-size: 26px; margin: 0 0 10px; letter-spacing: -.5px; }
+.lp-home-inner { max-width: 1180px; margin: 0 auto; padding: 28px 40px 40px; }
+.lp-home h2 { font-size: 22px; margin: 0 0 8px; letter-spacing: -.5px; }
 .lp-home h2 em { font-style: normal; color: #f5b95e; }
-.lp-home-lede { font-size: 15px; color: #f3e2c8; max-width: 640px; margin: 0 0 20px; line-height: 1.6; }
+.lp-home-lede { font-size: 14px; color: #f3e2c8; max-width: 640px; margin: 0 0 14px; line-height: 1.6; }
 .lp-home-lede em { font-style: normal; color: #f5b95e; }
-.lp-home-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.lp-home-card { background: rgba(255,255,255,.05); border: 1px solid rgba(245,185,94,.25); border-radius: 14px; padding: 18px 20px; }
-.lp-home-card svg { width: 26px; height: 26px; color: #f5b95e; margin-bottom: 8px; display: block; }
-.lp-home-card h3 { font-size: 16px; margin: 0 0 8px; }
-.lp-home-card p { font-size: 13.5px; line-height: 1.6; color: #e8d9bd; margin: 0; }
+.lp-home-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.lp-home-card { background: rgba(255,255,255,.05); border: 1px solid rgba(245,185,94,.25); border-radius: 14px; padding: 14px 16px; }
+.lp-home-card svg { width: 22px; height: 22px; color: #f5b95e; margin-bottom: 6px; display: block; }
+.lp-home-card h3 { font-size: 15px; margin: 0 0 6px; }
+.lp-home-card p { font-size: 13px; line-height: 1.6; color: #e8d9bd; margin: 0; }
 .lp-home-card p strong { color: #fff; }
-.lp-home-note { margin: 16px 0 0; font-size: 13px; color: #b39a72; }
+.lp-home-note { margin: 12px 0 0; font-size: 12px; color: #b39a72; }
 @media (max-width: 700px) {
-  .lp-home-inner { padding: 36px 24px 44px; }
+  .lp-home-inner { padding: 24px 24px 36px; }
   .lp-home-cards { grid-template-columns: 1fr; }
-  .lp-home h2 { font-size: 22px; }
+  .lp-home h2 { font-size: 20px; }
 }

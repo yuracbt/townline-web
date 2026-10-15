@@ -50,6 +50,11 @@
     });
     noResults.hidden = !q || visible > 0;
   });
+  // Arriving from "Choose your city" (?search): put the cursor in the box.
+  if (new URLSearchParams(location.search).has('search')) {
+    input.scrollIntoView({block: 'center'});
+    input.focus({preventScroll: true});
+  }
 })();
 </script>
 {% endblock %}

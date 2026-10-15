@@ -106,6 +106,19 @@ PLACES_DIRECTORY = load_places_directory()
 TOWNS = load_towns()
 
 
+CONTINENT_BY_CC = {
+    "ca": "North America", "us": "North America",
+    "at": "Europe", "be": "Europe", "cz": "Europe", "dk": "Europe",
+    "fi": "Europe", "fr": "Europe", "de": "Europe", "gr": "Europe",
+    "hu": "Europe", "ie": "Europe", "it": "Europe", "nl": "Europe",
+    "no": "Europe", "pl": "Europe", "pt": "Europe", "ro": "Europe",
+    "es": "Europe", "se": "Europe", "ch": "Europe", "ua": "Europe",
+    "gb": "Europe",
+    "au": "Oceania", "nz": "Oceania",
+}
+CONTINENT_ORDER = ["North America", "Europe", "Oceania"]
+
+
 def load_sponsors():
     """All sponsors as dicts (admin list). Kept for symmetry; the live
     surfaces use the filtered helpers below."""
@@ -3007,7 +3020,7 @@ def robots_txt():
 
 @app.route("/sitemap.xml")
 def sitemap_xml():
-    pages = ["/login", "/register", "/forgot", "/about"]
+    pages = ["/login", "/register", "/forgot", "/about", "/towns"]
     urls = "".join(
         f"<url><loc>{SITE_URL}{p}</loc><changefreq>weekly</changefreq>"
         f"<priority>0.8</priority></url>" for p in pages)
@@ -3018,6 +3031,39 @@ def sitemap_xml():
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
            f'{urls}</urlset>')
     return Response(xml, mimetype="application/xml")
+
+
+@app.route("/towns")
+def towns_page():
+    """Public directory of every town on TownsLine, grouped by
+    continent -> country -> region."""
+    tree = {}
+    for slug, t in TOWNS.items():
+        cont = CONTINENT_BY_CC.get((t.get("country_code") or "").lower(),
+                                   "Other")
+        tree.setdefault(cont, {}).setdefault(
+            t.get("country") or "Other", {}).setdefault(
+            t.get("region") or "Other", []).append(t)
+    continents = []
+    order = CONTINENT_ORDER + sorted(c for c in tree
+                                     if c not in CONTINENT_ORDER)
+    for cont in order:
+        if cont not in tree:
+            continue
+        countries = []
+        for country in sorted(tree[cont]):
+            regions = []
+            for region in sorted(tree[cont][country]):
+                towns = sorted(tree[cont][country][region],
+                               key=lambda x: x["name"])
+                regions.append({"name": region, "towns": towns,
+                                "count": len(towns)})
+            countries.append({"name": country, "regions": regions,
+                              "count": sum(r["count"] for r in regions)})
+        continents.append({"name": cont, "countries": countries,
+                           "count": sum(c["count"] for c in countries)})
+    return render_template("towns.html", continents=continents,
+                           total=sum(c["count"] for c in continents))
 
 
 @app.route("/t/<slug>")

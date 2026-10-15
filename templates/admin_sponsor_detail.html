@@ -10,8 +10,12 @@
     <label>Name <input name="name" value="{{ sponsor['name'] }}" required></label>
     <label>One-line description <input name="tagline" value="{{ sponsor['tagline'] or '' }}"></label>
     <label>Website URL <input name="url" type="url" value="{{ sponsor['url'] }}" required></label>
-    <label>Town <input name="town" value="{{ sponsor['town_name'] or sponsor['town_slug'] }}" required></label>
-    <label>Reach (km) <input name="radius_km" type="number" min="0" step="1" value="{{ sponsor['radius_km']|int }}"></label>
+    <label>Town <input name="town" id="town-input" value="{{ sponsor['town_name'] or sponsor['town_slug'] }}" autocomplete="off" {% if not sponsor['is_global'] %}required{% endif %} {% if sponsor['is_global'] %}disabled{% endif %}></label>
+    <input type="hidden" name="town_lat" id="town-lat">
+    <input type="hidden" name="town_lon" id="town-lon">
+    <div id="town-suggest" class="town-suggest" hidden></div>
+    <label class="check"><input type="checkbox" name="is_global" id="global-check" {% if sponsor['is_global'] %}checked{% endif %}> Global — Elite sponsor, shown to everyone (town and reach are not used)</label>
+    <label>Reach (km) <input name="radius_km" id="reach-input" type="number" min="0" step="1" value="{{ sponsor['radius_km']|int }}" {% if sponsor['is_global'] %}disabled{% endif %}></label>
     <label>Business email <input name="email" type="email" value="{{ sponsor['email'] or '' }}" required></label>
     <label>Active since <input name="active_since" type="date" value="{{ sponsor['active_since'] or '' }}"></label>
     <label>Renews (payment due) <input name="renews_on" type="date" value="{{ sponsor['renews_on'] or '' }}"></label>
@@ -26,6 +30,67 @@
     <p class="muted small">Last paid: {{ sponsor['last_paid_on'] or '—' }} · News this period: {{ news_used }} / {{ news_limit }}</p>
     <button type="submit" class="btn">Save changes</button>
   </form>
+  <script>
+  (function () {
+    var townInput = document.getElementById('town-input');
+    var latInput = document.getElementById('town-lat');
+    var lonInput = document.getElementById('town-lon');
+    var box = document.getElementById('town-suggest');
+    var globalCheck = document.getElementById('global-check');
+    var reachInput = document.getElementById('reach-input');
+    function applyGlobal() {
+      var g = globalCheck.checked;
+      townInput.disabled = g;
+      townInput.required = !g;
+      reachInput.disabled = g;
+      box.hidden = true;
+    }
+    globalCheck.addEventListener('change', applyGlobal);
+    applyGlobal();
+    var timer = null;
+    townInput.addEventListener('input', function () {
+      latInput.value = '';
+      lonInput.value = '';
+      clearTimeout(timer);
+      var q = townInput.value.trim();
+      if (q.length < 2 || townInput.disabled) { box.hidden = true; return; }
+      timer = setTimeout(function () {
+        fetch('/api/geocode?q=' + encodeURIComponent(q))
+          .then(function (r) { return r.json(); })
+          .then(function (items) {
+            if (!Array.isArray(items) || !items.length) { box.hidden = true; return; }
+            box.innerHTML = '';
+            items.slice(0, 6).forEach(function (it) {
+              var label = it.city || (it.display_name || '').split(',')[0] || q;
+              var sub = [it.state, (it.country_code || '').toUpperCase()].filter(Boolean).join(', ');
+              var b = document.createElement('button');
+              b.type = 'button';
+              b.className = 'town-opt';
+              var strong = document.createElement('strong');
+              strong.textContent = label;
+              var span = document.createElement('span');
+              span.className = 'muted small';
+              span.textContent = sub ? ' — ' + sub : '';
+              b.appendChild(strong);
+              b.appendChild(span);
+              b.addEventListener('click', function () {
+                townInput.value = label;
+                latInput.value = it.lat || '';
+                lonInput.value = it.lon || '';
+                box.hidden = true;
+              });
+              box.appendChild(b);
+            });
+            box.hidden = false;
+          })
+          .catch(function () { box.hidden = true; });
+      }, 300);
+    });
+    document.addEventListener('click', function (e) {
+      if (e.target !== townInput && !box.contains(e.target)) box.hidden = true;
+    });
+  })();
+  </script>
   <p>
     <form method="post" action="{{ url_for('admin_sponsor_mark_paid', sid=sponsor['id']) }}" style="display:inline"
           onsubmit="return confirm('Mark {{ sponsor['name'] }} as paid? Renewal moves forward one billing period and the news allowance resets.')">
@@ -52,7 +117,7 @@
 
 <div class="card">
   <h2>News ({{ news|length }})</h2>
-  <p class="muted small">News this period: {{ news_used }} / {{ news_limit }}. Each news item appears as a Sponsored row on the Business tile for readers in {{ sponsor['town_name'] or sponsor['town_slug'] }} and nearby. Expired news hides automatically.</p>
+  <p class="muted small">News this period: {{ news_used }} / {{ news_limit }}. {% if sponsor['is_global'] %}Each news item appears as a Sponsored row on the Business tile for readers everywhere.{% else %}Each news item appears as a Sponsored row on the Business tile for readers in {{ sponsor['town_name'] or sponsor['town_slug'] }} and nearby.{% endif %} Expired news hides automatically.</p>
   {% for n in news %}
   <form method="post" action="{{ url_for('admin_sponsor_news_edit', nid=n['id']) }}" class="news-edit">
     <label>Headline <input name="title" value="{{ n['title'] }}" required></label>

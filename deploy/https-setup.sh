@@ -49,9 +49,17 @@ systemctl restart townline
 
 echo "== nginx site =="
 cat > /etc/nginx/sites-available/townline <<EOF
+# www -> apex: one canonical copy of every page (avoids Search Console
+# "Duplicate, Google chose different canonical than user").
 server {
     listen 80;
-    server_name $DOMAIN www.$DOMAIN;
+    server_name www.$DOMAIN;
+    return 301 https://$DOMAIN\$request_uri;
+}
+
+server {
+    listen 80;
+    server_name $DOMAIN;
 
     location / {
         proxy_pass http://127.0.0.1:5000;

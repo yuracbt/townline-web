@@ -85,7 +85,7 @@ document.addEventListener('click', function(e){
     {% for s in sponsors %}
       <tr class="{% if not s['is_active'] %}blocked {% endif %}{% if s['is_overdue'] %}overdue{% endif %}" data-href="{{ url_for('admin_sponsor_detail', sid=s['id']) }}">
         <td><strong><a href="{{ url_for('admin_sponsor_detail', sid=s['id']) }}">{{ s['name'] }}</a></strong><br><span class="muted small">{{ s['tagline'] or '—' }}</span></td>
-        <td>{{ s['town_name'] or s['town_slug'] or '—' }}</td>
+        <td>{% if s['is_global'] %}<span class="pill">Global</span>{% else %}{{ s['town_name'] or s['town_slug'] or '—' }}{% endif %}</td>
         <td>{{ s['active_since'] or '—' }}</td>
         <td>{{ s['renews_on'] or '—' }}</td>
         <td>{{ s['news_count'] }}</td>

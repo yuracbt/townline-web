@@ -115,7 +115,11 @@ def load_sponsors():
 
 
 def town_slug_for(town_name):
-    """Match a user's town name to a town-page slug (for sponsors)."""
+    """Match a user's town name to a town-page slug (for sponsors).
+
+    Unicode-aware: 'Львів' -> 'львів'. The old ASCII-only version
+    collapsed every non-Latin name to '', which cross-matched
+    unrelated towns (a Kyiv user would match a Lviv sponsor)."""
     name = (town_name or "").strip().lower()
     if not name:
         return ""
@@ -123,7 +127,9 @@ def town_slug_for(town_name):
         if (t.get("name") or "").lower() == name:
             return slug
     # Fallback: slugify (handles towns not in the directory).
-    return re.sub(r"[^a-z0-9]+", "-", name).strip("-")
+    # \w keeps letters in every script, so non-English names get
+    # distinct, stable slugs.
+    return re.sub(r"[^\w]+", "-", name, flags=re.UNICODE).strip("-")
 
 
 def add_months(d, months):
@@ -626,6 +632,14 @@ def init_db():
             db.execute(ddl)
         except sqlite3.OperationalError:
             pass  # column already there
+    # Fix slugs for non-English town names: the old ASCII-only slugify
+    # collapsed every non-Latin name to '', cross-matching unrelated
+    # towns. Recompute from the stored town name (ASCII names are
+    # unaffected — the new function slugifies them identically).
+    for r in db.execute(
+            "SELECT id, town_name FROM sponsors WHERE town_name != ''"):
+        db.execute("UPDATE sponsors SET town_slug = ? WHERE id = ?",
+                   (town_slug_for(r["town_name"]), r["id"]))
     # Backfill: portal codes, active-since / renews dates (monthly billing).
     for r in db.execute(
             "SELECT id, code, created_at, active_since FROM sponsors"

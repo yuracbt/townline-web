@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Towns — TownsLine{% endblock %}
+{% block content %}
+<h1>Towns</h1>
+<p class="muted">{{ total }} towns on TownsLine — find yours, or follow any of them from anywhere in the world.</p>
+{% for cont in continents %}
+<details class="town-group"{% if loop.first %} open{% endif %}>
+  <summary><strong>{{ cont.name }}</strong> <span class="muted small">{{ cont.count }} towns</span></summary>
+  {% for country in cont.countries %}
+  <details class="town-group sub">
+    <summary>{{ country.name }} <span class="muted small">{{ country.count }}</span></summary>
+    {% for region in country.regions %}
+    <details class="town-group sub">
+      <summary>{{ region.name }} <span class="muted small">{{ region.count }}</span></summary>
+      <ul class="town-list">
+        {% for t in region.towns %}
+        <li><a href="{{ url_for('town_page', slug=t['slug']) }}">{{ t['name'] }}</a></li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endfor %}
+  </details>
+  {% endfor %}
+</details>
+{% endfor %}
+{% endblock %}

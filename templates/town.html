@@ -8,7 +8,7 @@
   {% if town.region %}{{ town.region }}, {% endif %}{{ town.country }} — and serves every story
   categorized in one clean inbox. No tracking ads. No algorithms. No noise.</p>
   <div class="town-cta">
-    <a class="btn" href="{{ url_for('register') }}">Create free account</a>
+    <a class="btn" href="{{ url_for('register', town=town['slug']) }}">Create free account</a>
     <a class="btn ghost" href="{{ url_for('login') }}">Log in</a>
   </div>
 </div>
@@ -57,7 +57,7 @@
     <li><strong>You read in one place</strong> — stories sorted into clean categories, unread first.</li>
   </ol>
   <div class="town-cta">
-    <a class="btn" href="{{ url_for('register') }}">Get {{ town.name }} news free</a>
+    <a class="btn" href="{{ url_for('register', town=town['slug']) }}">Get {{ town.name }} news free</a>
   </div>
 </div>
 {% endblock %}

@@ -425,3 +425,23 @@ input:disabled { background: #f1ede5; color: #a39a89; cursor: not-allowed; }
 }
 .town-opt:last-child { border-bottom: none; }
 .town-opt:hover { background: #faf6ee; filter: none; }
+
+/* ---- Towns directory page ---- */
+.town-group {
+  border: 1px solid var(--line); border-radius: 10px;
+  margin: 10px 0; background: var(--card);
+}
+.town-group summary {
+  cursor: pointer; padding: 11px 16px; font-size: 1.02rem;
+  list-style: none; border-radius: 10px;
+}
+.town-group summary::-webkit-details-marker { display: none; }
+.town-group summary::before { content: "▸ "; color: var(--accent); }
+.town-group[open] > summary::before { content: "▾ "; }
+.town-group.sub { margin: 10px 16px; }
+.town-list {
+  columns: 3; column-gap: 24px; margin: 2px 16px 16px; padding: 0;
+  list-style: none;
+}
+.town-list li { break-inside: avoid; padding: 3px 0; }
+@media (max-width: 700px) { .town-list { columns: 2; } }

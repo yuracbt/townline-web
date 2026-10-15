@@ -256,6 +256,8 @@ body.login-page .brand { color: #f5b95e; }
 .lp-proof { display: flex; gap: 22px; margin-top: 4px; }
 .lp-proof b { display: block; font-size: 18px; color: #fff; }
 .lp-proof span { font-size: 11px; color: #f3e2c8; }
+.lp-proof-link { text-decoration: none; display: block; }
+.lp-proof-link:hover b { text-decoration: underline; }
 .lp-card {
   flex: 1; background: #fffdf8; color: #2b2620; border-radius: 16px;
   padding: 26px 28px; max-width: 380px; width: 100%;
@@ -455,3 +457,4 @@ input:disabled { background: #f1ede5; color: #a39a89; cursor: not-allowed; }
   background: var(--accent-soft); border: 1px solid var(--line);
   border-radius: 10px; padding: 10px 14px; margin: 0 0 14px;
 }
+.town-attr { margin-top: 18px; }

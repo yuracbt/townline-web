@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ town.name }} News — Local News in One Inbox | TownsLine{% endblock %}
-{% block meta_description %}Never miss what matters in {{ town.name }}{% if town.region %}, {{ town.region }}{% endif %}. TownsLine automatically scans {{ town.feeds|length }} local news sources around the clock and serves them categorized in one clean inbox — no tracking ads, no algorithms. Free to start.{% endblock %}
+{% block meta_description %}Never miss what matters in {{ town.name }}{% if town.region %}, {{ town.region }}{% endif %}. TownsLine automatically scans {{ town.feeds|length + category_feeds|length }} local news sources around the clock and serves them categorized in one clean inbox — no tracking ads, no algorithms. Free to start.{% endblock %}
 {% block content %}
 <div class="town-hero">
   <h1>{{ town.name }} News,<br>in one inbox.</h1>
@@ -30,6 +30,14 @@
     <li><a href="{{ f.url }}" target="_blank" rel="noopener">{{ f.name }}</a></li>
     {% endfor %}
   </ul>
+  {% if category_feeds %}
+  <h3>Always-on topic feeds for {{ town.name }}</h3>
+  <ul class="town-feeds">
+    {% for f in category_feeds %}
+    <li><a href="{{ f.url }}" target="_blank" rel="noopener">{{ f.name }}</a></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
   <p class="muted">…plus any RSS feed you add yourself. Set your town once — TownsLine does the rest.</p>
   <p class="muted"><a href="{{ url_for('about_page') }}">Why TownsLine exists →</a></p>
 </div>

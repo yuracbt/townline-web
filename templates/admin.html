@@ -2,7 +2,7 @@
 {% block title %}Admin — TownsLine{% endblock %}
 {% block content %}
 <h1>Administration</h1>
-<nav class="admin-nav"><strong>Administration</strong> · <a href="{{ url_for('admin_sponsors') }}">Sponsors</a></nav>
+<nav class="admin-nav"><strong>Administration</strong> · <a href="{{ url_for('admin_sponsors') }}">Sponsors</a> · <a href="{{ url_for('admin_pro') }}">Pro subscriptions</a></nav>
 
 <div class="card">
   <h2>Users ({{ users|length }})</h2>

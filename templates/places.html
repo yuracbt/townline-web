@@ -76,7 +76,7 @@
     <label>Town
       <select name="town_slug">
         {% for t in pro_towns %}
-        <option value="{{ t.town_slug }}"{% if t.is_main %} selected{% endif %}>{{ t.town_name }}{% if t.is_main %} (main){% endif %}</option>
+        <option value="{{ t.town_slug }}"{% if t.town_slug == pro_place_filter or (pro_place_filter == 'all' and t.is_main) %} selected{% endif %}>{{ t.town_name }}{% if t.is_main %} (main){% endif %}</option>
         {% endfor %}
       </select>
     </label>
@@ -86,7 +86,7 @@
 </div>
 
 <div class="suggest-head">
-  <h2>Suggested places for <span id="place-town">{{ settings.get('town_name') or 'your town' }}</span></h2>
+  <h2>Suggested places for <span id="place-town">{{ suggest_town }}</span></h2>
   <button type="button" id="place-rethink" class="btn ghost small" title="Scan again from scratch, ignoring the cached results">↻ Rethink</button>
 </div>
 <p class="muted small busy" id="place-status">Scanning for local places…</p>
@@ -96,17 +96,51 @@
 const box = document.getElementById('place-list');
 const status = document.getElementById('place-status');
 const rethinkBtn = document.getElementById('place-rethink');
-async function loadSuggestions(refresh) {
+const SUGGEST_SLUG = "{{ suggest_slug }}";
+const SUGGEST_TOWN = "{{ suggest_town|e }}";
+const IS_PRO = {{ 'true' if pro_enabled else 'false' }};
+function suggestUrl(opts) {
+  let url = '{{ url_for("api_places_suggestions") }}?town=' + encodeURIComponent(SUGGEST_SLUG);
+  if (opts.refresh) url += '&refresh=1';
+  else if (opts.scan) url += '&scan=1';
+  return url;
+}
+function renderNotScanned(town) {
+  // Greyed-out until the user scans this town on demand; the scan is
+  // cached, so this only happens once per town.
+  box.innerHTML = '';
+  status.classList.remove('busy');
+  status.textContent = '';
+  const li = document.createElement('li');
+  li.className = 'feed';
+  li.style.opacity = '0.65';
+  const span = document.createElement('span');
+  span.className = 'muted';
+  span.textContent = 'Not scanned for ' + town + ' yet. ';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn small';
+  btn.textContent = 'Scan ' + town + ' for places';
+  btn.addEventListener('click', () => loadSuggestions({scan: true}));
+  li.appendChild(span);
+  li.appendChild(btn);
+  box.appendChild(li);
+}
+async function loadSuggestions(opts) {
+  opts = opts || {};
   box.innerHTML = '';
   status.classList.add('busy');
-  status.textContent = refresh ? 'Re-scanning for local places…' : 'Scanning for local places…';
+  status.textContent = opts.refresh ? 'Re-scanning for local places…' : 'Scanning for local places…';
   try {
-    const url = '{{ url_for("api_places_suggestions") }}' + (refresh ? '?refresh=1' : '');
-    const r = await fetch(url);
+    const r = await fetch(suggestUrl(opts));
     const data = await r.json();
     const items = data.suggestions || [];
     const townEl = document.getElementById('place-town');
     if (townEl && data.town) townEl.textContent = data.town;
+    if (!data.scanned && IS_PRO && !opts.scan && !opts.refresh) {
+      renderNotScanned(data.town || SUGGEST_TOWN);
+      return;
+    }
     if (!items.length) {
       status.classList.remove('busy');
       status.textContent = data.town
@@ -152,6 +186,7 @@ async function loadSuggestions(refresh) {
         const fd = new FormData();
         fd.append('name', p.name);
         fd.append('url', p.url);
+        if (IS_PRO && SUGGEST_SLUG) fd.append('town_slug', SUGGEST_SLUG);
         const resp = await fetch('{{ url_for("place_add") }}', {
           method: 'POST',
           body: fd,
@@ -172,9 +207,11 @@ async function loadSuggestions(refresh) {
 }
 rethinkBtn.addEventListener('click', async () => {
   rethinkBtn.disabled = true;
-  await loadSuggestions(true);
+  await loadSuggestions({refresh: true});
   rethinkBtn.disabled = false;
 });
-loadSuggestions(false);
+// Non-Pro users keep the old behavior: scan on page open. Pro users
+// scan each town on demand — cached afterwards, no rescan needed.
+loadSuggestions(IS_PRO ? {} : {scan: true});
 </script>
 {% endblock %}

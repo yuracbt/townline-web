@@ -1880,7 +1880,23 @@ def suggested_places_for_town(town_name):
 # around the user's coordinates, via the OpenStreetMap Overpass API.
 
 OSM_TTL = 24 * 3600
-_osm_cache = {}  # town_lower -> (timestamp, [places])
+_osm_cache = {}  # cache_key -> (timestamp, [places])
+
+
+def _osm_key(town_slug, town_name):
+    """Cache key for OSM discovery. Pro towns use their stable slug;
+    anything else falls back to the town name (previous behavior)."""
+    if town_slug:
+        return "slug:" + town_slug
+    return "name:" + (town_name or "").lower().strip()
+
+
+def _osm_fresh(key):
+    """Fresh cached OSM results, or None when never scanned / stale."""
+    hit = _osm_cache.get(key)
+    if hit and time.time() - hit[0] < OSM_TTL:
+        return hit[1]
+    return None
 
 OSM_KIND_LABELS = {
     "theatre": "Theatre", "library": "Library",
@@ -1942,14 +1958,14 @@ def _overpass(query):
     return []
 
 
-def discover_osm_places(lat, lon, town):
+def discover_osm_places(lat, lon, town, cache_key=None):
     """Live places around (lat, lon) from OpenStreetMap. Cached 24h.
 
     Two queries: cultural/civic places in 15 km, local shops in 8 km.
     (Schools are deliberately excluded — hundreds of them in any city,
     and they make the query time out without adding visit value.)
     """
-    key = (town or "").lower().strip()
+    key = cache_key or (town or "").lower().strip()
     if not key or not lat or not lon:
         return []
     now = time.time()
@@ -4037,26 +4053,60 @@ def places_page():
                 "url": (None if greyed else
                         url_for("places_page", town=t["town_slug"])),
             })
+    # Suggestions follow the selected town tile (main town when "All
+    # towns" is picked); non-Pro users get their single town.
+    suggest_town, suggest_slug = settings.get("town_name") or "your town", ""
+    if penabled and pro_towns:
+        st = next((t for t in pro_towns
+                   if t["town_slug"] == pro_place_filter), None)
+        if st is None:
+            st = next((t for t in pro_towns if t["is_main"]), pro_towns[0])
+        suggest_town, suggest_slug = st["town_name"], st["town_slug"]
     return render_template("places.html", user=user, settings=settings,
                            places=places, sponsors=sponsors,
                            pro_enabled=penabled, pro_towns=pro_towns,
                            pro_place_groups=pro_place_groups,
                            pro_place_tiles=pro_place_tiles,
-                           pro_place_filter=pro_place_filter)
+                           pro_place_filter=pro_place_filter,
+                           suggest_town=suggest_town,
+                           suggest_slug=suggest_slug)
 
 
 @app.route("/api/places/suggestions")
 @login_required
 def api_places_suggestions():
-    """Places for the user's town: curated directory + live OpenStreetMap
-    discovery around their coordinates. Excludes already-saved places."""
+    """Suggested places for a town: curated directory + OpenStreetMap
+    discovery around its coordinates. Excludes already-saved places.
+
+    ?town=<slug> picks the town (Pro users: one of their towns, falls
+    back to the main town). OSM discovery runs on demand only: the
+    response carries scanned=false until ?scan=1 (or ?refresh=1) has
+    populated the cache — afterwards results come from cache, no
+    rescan needed.
+    """
     user = current_user()
     db = get_db()
     settings = get_settings(user["id"])
-    town = settings.get("town_name", "")
+    town_slug, town_name, lat, lon = "", "", None, None
+    if pro_enabled(user):
+        towns = get_user_towns(user["id"])
+        want = (request.args.get("town") or "").strip()
+        target = next((t for t in towns if t["town_slug"] == want), None)
+        if target is None:
+            target = next((t for t in towns if t["is_main"]), None)
+        if target:
+            town_slug = target["town_slug"]
+            town_name = target["town_name"]
+            lat, lon = target["lat"], target["lon"]
+    if not town_name:
+        town_name = settings.get("town_name", "")
+        lat, lon = settings.get("lat"), settings.get("lon")
+    key = _osm_key(town_slug, town_name)
+    do_scan = request.args.get("scan") == "1" or \
+        request.args.get("refresh") == "1"
     if request.args.get("refresh") == "1":
         # Rethink: drop the cached OSM discovery so this call scans fresh.
-        _osm_cache.pop((town or "").lower().strip(), None)
+        _osm_cache.pop(key, None)
     have = {norm_url(r["url"]) for r in
             db.execute("SELECT url FROM places WHERE user_id = ?",
                        (user["id"],)).fetchall()}
@@ -4070,12 +4120,19 @@ def api_places_suggestions():
         suggestions.append({"name": name, "url": url.strip(),
                             "kind": kind, "origin": origin})
 
-    for p in suggested_places_for_town(town):
+    for p in suggested_places_for_town(town_name):
         add(p["name"], p["url"], origin="directory")
-    for p in discover_osm_places(settings.get("lat"), settings.get("lon"),
-                                 town):
+    if do_scan:
+        osm = discover_osm_places(lat, lon, town_name, cache_key=key)
+        scanned = True
+    else:
+        osm = _osm_fresh(key)
+        scanned = osm is not None
+        osm = osm or []
+    for p in osm:
         add(p["name"], p["url"], kind=p["kind"], origin=p["origin"])
-    return jsonify({"town": town, "suggestions": suggestions})
+    return jsonify({"town": town_name, "town_slug": town_slug,
+                    "suggestions": suggestions, "scanned": scanned})
 
 
 @app.route("/places/add", methods=["POST"])
@@ -4096,6 +4153,10 @@ def place_add():
             towns = get_user_towns(user["id"])
             main = next((t for t in towns if t["is_main"]), None)
             town_slug = main["town_slug"] if main else ""
+        if pro_enabled(user) and town_slug:
+            slugs = {t["town_slug"] for t in get_user_towns(user["id"])}
+            if town_slug not in slugs:
+                town_slug = ""
         have = {norm_url(r["url"]) for r in
                 db.execute("SELECT url FROM places WHERE user_id = ?",
                            (session["user_id"],)).fetchall()}

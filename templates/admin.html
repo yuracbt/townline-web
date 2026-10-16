@@ -44,7 +44,7 @@
         <td colspan="7">
           <span class="muted small">Towns:</span>
           {% if u['towns'] %}
-            {% for t in u['towns'] %}<span class="townchip">{{ t['label'] }}</span>{% endfor %}
+            {% for t in u['towns'] %}<span class="townchip"{% if t['main'] %} title="Main town"{% endif %}>{{ t['label'] }}{% if t['main'] %} ★{% endif %}</span>{% endfor %}
           {% else %}<span class="muted small">no town set</span>{% endif %}
         </td>
       </tr>

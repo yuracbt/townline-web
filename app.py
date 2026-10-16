@@ -2409,17 +2409,11 @@ def admin_panel():
         d = dict(u)
         d["created_str"] = datetime.fromtimestamp(
             u["created_at"], tz=timezone.utc).strftime("%Y-%m-%d")
-        # Towns for the expandable detail row. Today each user has a single
-        # town in settings; kept as a list so the future up-to-7-towns
-        # support only needs to fill this list.
-        s = get_settings(u["id"])
-        towns = []
-        name = (s.get("town_name") or "").strip()
-        if name:
-            label = ", ".join(p for p in
-                              (name, s.get("state") or "",
-                               s.get("country_code") or "") if p)
-            towns.append({"label": label})
+        # Towns for the expandable detail row: all of the user's towns
+        # (main first), from user_towns — the single source of truth.
+        towns = [{"label": t.get("town_name") or t["town_slug"],
+                  "main": bool(t.get("is_main"))}
+                 for t in get_user_towns(u["id"])]
         d["towns"] = towns
         user_rows.append(d)
     feedback_rows = []

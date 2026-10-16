@@ -156,26 +156,46 @@ Directly above the news line, a slim tile row (rendered only when
 
 ### 2.3 Settings — "Your towns" card (pro_enabled only)
 
-Replaces the single "Your town" card:
+Replaces the single "Your town" card (Yuriy's review, 2026-10-16):
 
-- Main town pinned at top with 📌 + "Main" badge — cannot be moved or removed.
-- Extra towns as slim rows with **↑ / ↓ reorder arrows** and **Remove**
-  (confirm). Order persists in `user_towns.sort_order` and drives the
-  dashboard tiles, Places groups and feeds groups — single source of truth.
-- "Change main town" keeps today's Nominatim picker (posts to
-  `/settings/location`); the pinned `user_towns` row is reconciled so there
-  is exactly one main town.
-- "Add an extra town": the same Nominatim picker UX (new instance posting
-  to `/settings/towns/add`) — type, pick the correct town name, feeds seed
-  and scan instantly (Yuriy's decisions, 2026-10-16).
+- Main town pinned at top with 📌 + "Main" badge — not draggable, no
+  switch, no remove.
+- Extra towns as **draggable rows** (⋮⋮ grip, HTML5 drag-and-drop):
+  grip + name on the left; **"Make main" switch** + **Remove** (confirm)
+  on the right. Drop persists the full order via
+  `POST /settings/towns/reorder` (JSON `{order: [ids]}`); the DOM updates
+  optimistically and reverts with an inline error on failure.
+- **"Make main"** (`POST /settings/towns/make_main`): flips `is_main`,
+  swaps sort positions with the old main (order stays intuitive),
+  and syncs `settings.town_name` so `ensure_main_town()` never reconciles
+  the flip back. Feed `town_slug`s don't change; untagged legacy feeds
+  follow the new main via the existing COALESCE rule.
+- No "Change main town" / "Add an extra town" search sections anymore:
+  **"📍 Scan near me"** sits next to **"＋ Add Extra Town"**, which expands
+  the same inline Nominatim picker (type → pick correct town name → feeds
+  seed and scan instantly). At the slot limit the button is disabled with
+  "5/5 towns used" (10/10 on Elite); lapsed users get the backend
+  rejection message via flash. The `/settings/location` route stays for
+  non-Pro single-town users.
+- First town ever (no towns, no settings town) becomes main automatically.
+- Order persists in `user_towns.sort_order` and drives the dashboard
+  tiles, Places groups and feeds groups — single source of truth.
 - Removing a town never deletes stories: its feeds revert to untagged
   (main-town) attribution.
 
 ### 2.4 Settings — Feeds grouped per town + "show with all"
 
-- Feeds render grouped under town headers in town order (untagged/legacy
-  feeds group under the main town).
-- Each feed row gets a **"show with all"** checkbox (`feeds.show_all`).
+- The feeds card opens with the **same town-tiles row as the dashboard**
+  ([All] [📌 main] [extras in town order]).
+- Clicking a tile filters the feeds list to that town's feeds ("All" shows
+  the grouped view, default). The selection persists in
+  `settings.pro_town_filter` — **shared with the dashboard news line**,
+  so both surfaces follow one "current town".
+- Scan buttons next to the tiles: **"Scan {Town}"** scans only that town's
+  feeds (`POST /feeds/scan_town`: town_slug match, plus untagged feeds for
+  the main town, plus `show_all` feeds in all cases); **"Scan All"** is the
+  existing full scan. With "All" selected there is a single **"Scan now"**.
+- Each feed row keeps its **"show with all"** checkbox (`feeds.show_all`).
   A flagged feed's stories appear in **every** town's news line ("pinned
   for all towns"); unflagged feeds never leak across towns.
 

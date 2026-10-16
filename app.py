@@ -731,7 +731,8 @@ def add_user_town(user_id, town_name, lat=None, lon=None):
     lapsed — renew first). Enforces the plan's slot limit. Seeds the
     town's feeds via seed_default_feeds(), tagging the new feed rows
     with town_slug so stories attribute to the right town.
-    Returns (ok, message)."""
+    First town ever (no towns, no settings town): becomes the main town
+    automatically. Returns (ok, message)."""
     db = get_db()
     town_name = (town_name or "").strip()
     if not town_name:
@@ -757,14 +758,20 @@ def add_user_town(user_id, town_name, lat=None, lon=None):
     max_order = db.execute(
         "SELECT COALESCE(MAX(sort_order), 0) m FROM user_towns "
         "WHERE user_id = ?", (user_id,)).fetchone()["m"]
+    # First town ever (no rows and no settings town): it becomes the
+    # main town automatically, pinned first.
+    is_main = 1 if not towns else 0
     try:
         db.execute(
             "INSERT INTO user_towns (user_id, town_name, town_slug, lat, "
-            "lon, is_main, sort_order, created_at) VALUES (?,?,?,?,?,0,?,?)",
-            (user_id, town_name, slug, lat, lon, max_order + 1,
-             int(time.time())))
+            "lon, is_main, sort_order, created_at) VALUES (?,?,?,?,?,?,?,?)",
+            (user_id, town_name, slug, lat, lon, is_main,
+             0 if is_main else max_order + 1, int(time.time())))
     except sqlite3.IntegrityError:
         return False, f"{town_name} is already in the town list."
+    if is_main:
+        db.execute("UPDATE settings SET town_name = ?, lat = ?, lon = ? "
+                   "WHERE user_id = ?", (town_name, lat, lon, user_id))
     # Seed feeds for the new town, tagging the fresh feed rows so the
     # Pro news views can attribute stories to this town. Feeds that
     # already existed (URL dedup) keep their previous attribution.
@@ -805,6 +812,62 @@ def move_user_town(user_id, town_id, direction):
                (a["sort_order"], b["id"]))
     db.commit()
     return True, f"Moved {a['town_name']} {'up' if direction == 'up' else 'down'}."
+
+
+def reorder_user_towns(user_id, ordered_ids):
+    """Persist a full drag-and-drop ordering of a user's towns.
+    ordered_ids is the complete list of town row ids, main town first.
+    The main town must stay first and can never move. Returns
+    (ok, message)."""
+    db = get_db()
+    towns = [dict(r) for r in db.execute(
+        "SELECT * FROM user_towns WHERE user_id = ?", (user_id,)).fetchall()]
+    if not towns:
+        return False, "No towns to reorder."
+    by_id = {t["id"]: t for t in towns}
+    try:
+        ids = [int(i) for i in ordered_ids]
+    except (TypeError, ValueError):
+        return False, "Invalid town order."
+    if set(ids) != set(by_id) or len(ids) != len(by_id):
+        return False, "Town list changed — please reload and try again."
+    main = next(t for t in towns if t["is_main"])
+    if ids[0] != main["id"]:
+        return False, "The main town is pinned first and can't be moved."
+    for pos, tid in enumerate(ids):
+        db.execute("UPDATE user_towns SET sort_order = ? WHERE id = ?",
+                   (pos, tid))
+    db.commit()
+    return True, "Town order saved."
+
+
+def make_main_town(user_id, town_id):
+    """Make an extra town the main town. The previous main is demoted to
+    extra and they swap sort positions, so the visible order stays
+    intuitive. Feed town_slug values don't change, so story attribution
+    is untouched; untagged legacy feeds follow the new main via the
+    existing COALESCE rule. settings.town_name is synced so
+    ensure_main_town() never reconciles the flip back. Returns
+    (ok, message)."""
+    db = get_db()
+    row = db.execute("SELECT * FROM user_towns WHERE id = ? AND user_id = ?",
+                     (town_id, user_id)).fetchone()
+    if not row:
+        return False, "Town not found."
+    if row["is_main"]:
+        return False, "That's already your main town."
+    main = db.execute("SELECT * FROM user_towns WHERE user_id = ? "
+                      "AND is_main = 1", (user_id,)).fetchone()
+    if main:
+        db.execute("UPDATE user_towns SET is_main = 0, sort_order = ? "
+                   "WHERE id = ?", (row["sort_order"], main["id"]))
+    db.execute("UPDATE user_towns SET is_main = 1, sort_order = ? "
+               "WHERE id = ?", (main["sort_order"] if main else 0, town_id))
+    db.execute("UPDATE settings SET town_name = ?, lat = ?, lon = ? "
+               "WHERE user_id = ?",
+               (row["town_name"], row["lat"], row["lon"], user_id))
+    db.commit()
+    return True, f"{row['town_name']} is now your main town."
 
 
 def remove_user_town(user_id, town_id):
@@ -2109,13 +2172,23 @@ def scan_feed(db, user_id, feed):
     return new
 
 
-def scan_user(user_id):
+def scan_user(user_id, feed_ids=None):
+    """Scan a user's enabled feeds. When feed_ids is given, only those
+    feeds are scanned (per-town "Scan {Town}")."""
     db = sqlite3.connect(DB_PATH)
     db.row_factory = sqlite3.Row
     try:
-        feeds = db.execute(
-            "SELECT * FROM feeds WHERE user_id = ? AND enabled = 1",
-            (user_id,)).fetchall()
+        if feed_ids is None:
+            feeds = db.execute(
+                "SELECT * FROM feeds WHERE user_id = ? AND enabled = 1",
+                (user_id,)).fetchall()
+        elif not feed_ids:
+            feeds = []
+        else:
+            feeds = db.execute(
+                "SELECT * FROM feeds WHERE user_id = ? AND enabled = 1 "
+                "AND id IN (%s)" % ",".join("?" * len(feed_ids)),
+                (user_id, *feed_ids)).fetchall()
         for feed in feeds:  # one at a time; a bad feed must not kill the loop
             try:
                 scan_feed(db, user_id, dict(feed))
@@ -3134,16 +3207,30 @@ def settings_town_add():
     return redirect(url_for("settings_page") + "#towns")
 
 
-@app.route("/settings/towns/<int:tid>/move", methods=["POST"])
+@app.route("/settings/towns/reorder", methods=["POST"])
 @login_required
 @pro_required
-def settings_town_move(tid):
-    """Reorder an extra town up/down. Main town is pinned."""
+def settings_towns_reorder():
+    """Persist drag-and-drop town order from the Settings towns card.
+    JSON body: {"order": [town_id, ...]} — full list, main town first."""
+    data = request.get_json(force=True, silent=True) or {}
+    ok, msg = reorder_user_towns(current_user()["id"],
+                                data.get("order") or [])
+    return jsonify({"ok": ok, "message": msg}), (200 if ok else 400)
+
+
+@app.route("/settings/towns/make_main", methods=["POST"])
+@login_required
+@pro_required
+def settings_town_make_main():
+    """Make an extra town the main town (the "Make main" switch on the
+    Settings towns card)."""
     user = current_user()
-    direction = request.form.get("direction", "down")
-    if direction not in ("up", "down"):
-        direction = "down"
-    ok, msg = move_user_town(user["id"], tid, direction)
+    try:
+        tid = int(request.form.get("tid", 0))
+    except (TypeError, ValueError):
+        tid = 0
+    ok, msg = make_main_town(user["id"], tid)
     flash(msg)
     return redirect(url_for("settings_page") + "#towns")
 
@@ -3737,6 +3824,49 @@ def scan_now():
     return redirect(request.referrer or url_for("settings_page") + "#feeds")
 
 
+def pro_town_scan_feeds(user_id, slug):
+    """Feed ids to scan for one town: its tagged feeds plus feeds flagged
+    'show with all'. The main town also gets untagged legacy feeds.
+    Returns (town_dict_or_None, [feed ids])."""
+    db = get_db()
+    towns = get_user_towns(user_id)
+    t = next((x for x in towns if x["town_slug"] == slug), None)
+    if not t:
+        return None, []
+    if t["is_main"]:
+        rows = db.execute(
+            "SELECT id FROM feeds WHERE user_id = ? AND enabled = 1 AND "
+            "(COALESCE(town_slug, '') IN (?, '') OR "
+            "COALESCE(show_all, 0) = 1)",
+            (user_id, slug)).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT id FROM feeds WHERE user_id = ? AND enabled = 1 AND "
+            "(town_slug = ? OR COALESCE(show_all, 0) = 1)",
+            (user_id, slug)).fetchall()
+    return t, [r["id"] for r in rows]
+
+
+@app.route("/feeds/scan_town", methods=["POST"])
+@login_required
+@pro_required
+def scan_town():
+    """Scan only one town's feeds (the "Scan {Town}" button on the
+    Settings feeds card)."""
+    user = current_user()
+    slug = (request.form.get("town") or "").strip()
+    t, ids = pro_town_scan_feeds(user["id"], slug)
+    if not t:
+        flash("Town not found.")
+        return redirect(url_for("settings_page") + "#feeds")
+    session["scan_requested_at"] = int(time.time())
+    threading.Thread(target=scan_user, args=(user["id"], ids),
+                     daemon=True).start()
+    flash(f"Scanning {t['town_name']} feeds — new stories will appear "
+          f"in a moment.", "scan")
+    return redirect(url_for("settings_page") + "#feeds")
+
+
 @app.route("/api/scan_status")
 @login_required
 def scan_status():
@@ -3911,9 +4041,11 @@ def settings_page():
         feed_rows.append(d)
     penabled = pro_enabled(user)
     pro_towns, pro_feed_groups, pro_sub = [], [], None
+    pro_feed_tiles, pro_feed_filter, pro_feed_filter_name = [], "all", "All towns"
     if penabled:
         pro_towns = get_user_towns(user["id"])
         status, plan, expires_at = pro_status(user)
+        pro_active = status == "active"
         extras = [t for t in pro_towns if not t["is_main"]]
         max_extras = pro_extra_limit(plan) if plan in ("pro", "elite") else 5
         pro_sub = {
@@ -3922,10 +4054,30 @@ def settings_page():
             "extras": len(extras), "max_extras": max_extras,
             "max_towns": 1 + max_extras,
         }
-        # Feeds grouped under town headers in town order; untagged
-        # (legacy) feeds belong to the main town.
         main_slug = next((t["town_slug"] for t in pro_towns if t["is_main"]),
                          "")
+        slugs = {t["town_slug"] for t in pro_towns}
+
+        def _valid_filter(v):
+            v = (v or "all").strip()
+            if v != "all" and (v not in slugs or
+                              (not pro_active and v != main_slug)):
+                return main_slug or "all"
+            return v
+
+        # The feeds card shares the dashboard's "current town" concept:
+        # picking a tile here switches the news line too.
+        fq = (request.args.get("feed_town") or "").strip()
+        if fq:
+            fq = _valid_filter(fq)
+            if (settings.get("pro_town_filter") or "all") != fq:
+                db.execute("UPDATE settings SET pro_town_filter = ? "
+                           "WHERE user_id = ?", (fq, user["id"]))
+                db.commit()
+                settings["pro_town_filter"] = fq
+        pro_feed_filter = _valid_filter(settings.get("pro_town_filter"))
+        # Feeds grouped under town headers in town order; untagged
+        # (legacy) feeds belong to the main town.
         groups = {t["town_slug"]: {"town_name": t["town_name"],
                                    "town_slug": t["town_slug"],
                                    "is_main": bool(t["is_main"]),
@@ -3935,14 +4087,39 @@ def settings_page():
             if g is None:
                 continue
             g["feeds"].append(d)
-        pro_feed_groups = [groups[t["town_slug"]] for t in pro_towns]
-        for g in pro_feed_groups:
+        all_groups = [groups[t["town_slug"]] for t in pro_towns]
+        for g in all_groups:
             g["feeds"].sort(key=lambda d: d["name"].lower())
+        pro_feed_groups = (all_groups if pro_feed_filter == "all"
+                           else [g for g in all_groups
+                                 if g["town_slug"] == pro_feed_filter])
+        # Town tiles row (same component as the dashboard).
+        pro_feed_tiles = [{
+            "slug": "all", "name": "All towns", "is_main": False,
+            "greyed": False, "active": pro_feed_filter == "all",
+            "url": url_for("settings_page", feed_town="all") + "#feeds",
+        }]
+        for t in pro_towns:
+            greyed = bool(not t["is_main"] and not pro_active)
+            pro_feed_tiles.append({
+                "slug": t["town_slug"], "name": t["town_name"],
+                "is_main": bool(t["is_main"]), "greyed": greyed,
+                "active": pro_feed_filter == t["town_slug"],
+                "url": (None if greyed else
+                        url_for("settings_page",
+                                feed_town=t["town_slug"]) + "#feeds"),
+            })
+        ft = next((t for t in pro_towns
+                   if t["town_slug"] == pro_feed_filter), None)
+        pro_feed_filter_name = ft["town_name"] if ft else "All towns"
     return render_template("settings.html", user=user, settings=settings,
                            intervals=INTERVALS, feeds=feed_rows,
                            rel_time=rel_time, pro_enabled=penabled,
                            pro_towns=pro_towns,
-                           pro_feed_groups=pro_feed_groups, pro_sub=pro_sub)
+                           pro_feed_groups=pro_feed_groups, pro_sub=pro_sub,
+                           pro_feed_tiles=pro_feed_tiles,
+                           pro_feed_filter=pro_feed_filter,
+                           pro_feed_filter_name=pro_feed_filter_name)
 
 
 @app.route("/settings/theme", methods=["POST"])

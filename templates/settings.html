@@ -43,50 +43,49 @@
 {% if pro_enabled %}
 <div class="card" id="towns">
   <h2>Your towns</h2>
-  {% for t in pro_towns %}
-  {% if loop.first %}
-  <p>📌 <strong>{{ t.town_name }}</strong> <span class="pill">Main</span></p>
-  <p class="muted small">Your main town is always first and can't be moved or removed.</p>
+  <p class="muted small">Drag extra towns to reorder — the same order is used in your news line and Places. Your main town is always first.</p>
+  {% if not pro_towns %}
+  <p class="muted">No towns yet — add your first town below; it will become your main town.</p>
   {% endif %}
-  {% endfor %}
-  {% for t in pro_towns[1:] %}
-  <div class="feed">
-    <div><strong>{{ t.town_name }}</strong></div>
-    <div class="feedactions">
-      {% if not loop.first %}
-      <form method="post" action="{{ url_for('settings_town_move', tid=t.id) }}">
-        <input type="hidden" name="direction" value="up">
-        <button type="submit" class="btn small" title="Move up">↑</button>
-      </form>
+  <ul id="townrows" class="townrows">
+    {% for t in pro_towns %}
+    <li class="townrow{% if t.is_main %} is-main{% endif %}" data-tid="{{ t.id }}"{% if not t.is_main %} draggable="true"{% endif %}>
+      {% if not t.is_main %}<span class="grip" title="Drag to reorder">⋮⋮</span>{% endif %}
+      <span class="townrow-name">{% if t.is_main %}📌 {% endif %}<strong>{{ t.town_name }}</strong>{% if t.is_main %} <span class="pill">Main</span>{% endif %}</span>
+      {% if not t.is_main %}
+      <span class="townrow-actions">
+        <form method="post" action="{{ url_for('settings_town_make_main') }}" class="inline-form">
+          <input type="hidden" name="tid" value="{{ t.id }}">
+          <label class="switch-wrap" title="Make {{ t.town_name }} your main town">
+            <span class="switch"><input type="checkbox" onchange="this.form.submit()"><span class="slider"></span></span>
+            <span class="muted small">Make main</span>
+          </label>
+        </form>
+        <form method="post" action="{{ url_for('settings_town_remove', tid=t.id) }}" class="inline-form" onsubmit="return confirm('Remove this town?')">
+          <button type="submit" class="btn small danger">Remove</button>
+        </form>
+      </span>
       {% endif %}
-      {% if not loop.last %}
-      <form method="post" action="{{ url_for('settings_town_move', tid=t.id) }}">
-        <input type="hidden" name="direction" value="down">
-        <button type="submit" class="btn small" title="Move down">↓</button>
-      </form>
-      {% endif %}
-      <form method="post" action="{{ url_for('settings_town_remove', tid=t.id) }}"
-            onsubmit="return confirm('Remove this town?')">
-        <button type="submit" class="btn small danger">Remove</button>
-      </form>
-    </div>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="muted small" id="towns-order-status" role="status"></p>
+  <div class="btnrow">
+    <button type="button" class="btn" id="scan-near-btn">📍 Scan near me</button>
+    {% if pro_sub.extras >= pro_sub.max_extras %}
+    <button type="button" class="btn" disabled title="Town limit reached">{{ pro_sub.extras }}/{{ pro_sub.max_extras }} towns used</button>
+    {% else %}
+    <button type="button" class="btn" id="add-town-btn">＋ Add Extra Town</button>
+    {% endif %}
   </div>
-  {% else %}
-  <p class="muted small">No extra towns yet — add one below.</p>
-  {% endfor %}
-  <button type="button" class="btn" id="scan-near-btn">📍 Scan near me</button>
   <p class="muted small" id="scan-near-status"></p>
-  <h3 style="margin-top:16px;margin-bottom:4px">Change main town</h3>
-  <label>Search by place name, postal code or ZIP
-    <input id="locq" placeholder="e.g. Airdrie, T4B 0B5, 90210" autocomplete="off">
-  </label>
-  <ul id="locresults" class="locresults"></ul>
-  <h3 style="margin-top:16px;margin-bottom:4px">Add an extra town</h3>
-  <label>Search by place name, postal code or ZIP
-    <input id="extratownq" placeholder="e.g. Cochrane, Banff" autocomplete="off">
-  </label>
-  <ul id="extratownresults" class="locresults"></ul>
-  <p class="muted small">Results come from OpenStreetMap Nominatim.</p>
+  <div id="add-town-picker" hidden>
+    <label>Search by place name, postal code or ZIP
+      <input id="extratownq" placeholder="e.g. Cochrane, Banff" autocomplete="off">
+    </label>
+    <ul id="extratownresults" class="locresults"></ul>
+    <p class="muted small">Results come from OpenStreetMap Nominatim.</p>
+  </div>
 </div>
 
 <div class="card">
@@ -100,10 +99,10 @@
 
 <div class="card" id="feeds">
   <h2>Feeds</h2>
+  {% if not pro_enabled %}
   <form class="inline-form" method="post" action="{{ url_for('scan_now') }}">
     <button type="submit">Scan now</button>
   </form>
-  {% if not pro_enabled %}
   <ul class="feedlist">
   {% for f in feeds %}
     <li class="feed">
@@ -132,6 +131,28 @@
   {% endif %}
 
   {% if pro_enabled %}
+  <div class="towntiles">
+    {% for t in pro_feed_tiles %}
+    {% if t.greyed %}<span class="towntile greyed" title="Renew to see this town's feeds">{{ t.name }}</span>
+    {% elif t.active %}<span class="towntile on">{% if t.is_main %}📌 {% endif %}{{ t.name }}</span>
+    {% else %}<a class="towntile" href="{{ t.url }}">{% if t.is_main %}📌 {% endif %}{{ t.name }}</a>{% endif %}
+    {% endfor %}
+  </div>
+  <div class="btnrow">
+    {% if pro_feed_filter == 'all' %}
+    <form class="inline-form" method="post" action="{{ url_for('scan_now') }}">
+      <button type="submit">Scan now</button>
+    </form>
+    {% else %}
+    <form class="inline-form" method="post" action="{{ url_for('scan_town') }}">
+      <input type="hidden" name="town" value="{{ pro_feed_filter }}">
+      <button type="submit">Scan {{ pro_feed_filter_name }}</button>
+    </form>
+    <form class="inline-form" method="post" action="{{ url_for('scan_now') }}">
+      <button type="submit">Scan All</button>
+    </form>
+    {% endif %}
+  </div>
   {% for g in pro_feed_groups %}
   <h3 style="margin-bottom:4px">{% if g.is_main %}📌 {% endif %}{{ g.town_name }}</h3>
   <ul class="feedlist">
@@ -315,6 +336,79 @@ if (xq) {
         xbox.appendChild(li);
       }
     }, 350);
+  });
+}
+// "Add Extra Town" expands the inline Nominatim picker.
+const addTownBtn = document.getElementById('add-town-btn');
+const addTownPicker = document.getElementById('add-town-picker');
+if (addTownBtn && addTownPicker) {
+  addTownBtn.addEventListener('click', () => {
+    addTownPicker.hidden = !addTownPicker.hidden;
+    if (!addTownPicker.hidden) {
+      const xq = document.getElementById('extratownq');
+      if (xq) xq.focus();
+    }
+  });
+}
+
+// Drag-and-drop town reorder (extra towns only; main town is pinned).
+const townRows = document.getElementById('townrows');
+if (townRows) {
+  const orderStatus = document.getElementById('towns-order-status');
+  let dragEl = null;
+  const clearHints = () => townRows.querySelectorAll('.drop-before,.drop-after')
+    .forEach(el => el.classList.remove('drop-before', 'drop-after'));
+  const rowOrder = () => [...townRows.querySelectorAll('.townrow')]
+    .map(r => parseInt(r.dataset.tid, 10));
+  townRows.querySelectorAll('.townrow[draggable="true"]').forEach(row => {
+    row.addEventListener('dragstart', e => {
+      dragEl = row;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', row.dataset.tid); } catch (_) {}
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      clearHints();
+      dragEl = null;
+    });
+    row.addEventListener('dragover', e => {
+      if (!dragEl || dragEl === row) return;
+      e.preventDefault();
+      const rect = row.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      clearHints();
+      row.classList.add(before ? 'drop-before' : 'drop-after');
+    });
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      if (!dragEl || dragEl === row) { clearHints(); return; }
+      const rect = row.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      const original = [...townRows.querySelectorAll('.townrow')];
+      if (before) row.before(dragEl); else row.after(dragEl);
+      clearHints();
+      dragEl.classList.remove('dragging');
+      dragEl = null;
+      fetch('{{ url_for("settings_towns_reorder") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: rowOrder() })
+      }).then(async r => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.ok) throw new Error(data.message || 'Could not save the new order.');
+        if (orderStatus) {
+          orderStatus.textContent = data.message || 'Order saved.';
+          orderStatus.classList.remove('error');
+        }
+      }).catch(err => {
+        original.forEach(r => townRows.appendChild(r));
+        if (orderStatus) {
+          orderStatus.textContent = err.message;
+          orderStatus.classList.add('error');
+        }
+      });
+    });
   });
 }
 </script>

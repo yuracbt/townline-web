@@ -2855,22 +2855,8 @@ def rethink():
 @app.route("/feeds")
 @login_required
 def feeds_page():
-    user = current_user()
-    db = get_db()
-    settings = get_settings(user["id"])
-    feeds = db.execute(
-        "SELECT * FROM feeds WHERE user_id = ? ORDER BY name",
-        (user["id"],)).fetchall()
-    feed_rows = []
-    for f in feeds:
-        d = dict(f)
-        d["thinking"] = think_source(f["name"], f["url"])
-        d["sync_info"] = (rel_time(f["last_sync"]) if f["last_sync"]
-                          else "not scanned yet")
-        feed_rows.append(d)
-    have_urls = {f["url"] for f in feeds}
-    return render_template("feeds.html", user=user, settings=settings,
-                           feeds=feed_rows, rel_time=rel_time)
+    # Feeds now live under Settings; keep the old URL working.
+    return redirect(url_for("settings_page") + "#feeds")
 
 
 @app.route("/api/suggestions")
@@ -2950,7 +2936,7 @@ def feed_add():
                         "name": name, "url": url})
     if duplicate:
         flash("That feed is already in your list.")
-    return redirect(url_for("feeds_page"))
+    return redirect(url_for("settings_page") + "#feeds")
 
 
 @app.route("/feeds/<int:fid>/toggle", methods=["POST"])
@@ -2961,7 +2947,7 @@ def feed_toggle(fid):
         "UPDATE feeds SET enabled = 1 - enabled "
         "WHERE id = ? AND user_id = ?", (fid, session["user_id"]))
     db.commit()
-    return redirect(url_for("feeds_page"))
+    return redirect(url_for("settings_page") + "#feeds")
 
 
 @app.route("/feeds/<int:fid>/delete", methods=["POST"])
@@ -2971,7 +2957,7 @@ def feed_delete(fid):
     db.execute("DELETE FROM feeds WHERE id = ? AND user_id = ?",
                (fid, session["user_id"]))
     db.commit()
-    return redirect(url_for("feeds_page"))
+    return redirect(url_for("settings_page") + "#feeds")
 
 
 @app.route("/feeds/scan_now", methods=["POST"])
@@ -2981,7 +2967,7 @@ def scan_now():
     threading.Thread(target=scan_user, args=(session["user_id"],),
                      daemon=True).start()
     flash("Scanning your feeds — new stories will appear in a moment.", "scan")
-    return redirect(request.referrer or url_for("feeds_page"))
+    return redirect(request.referrer or url_for("settings_page") + "#feeds")
 
 
 @app.route("/api/scan_status")
@@ -3115,8 +3101,19 @@ def settings_page():
         db.commit()
         return redirect(url_for("settings_page"))
     settings = get_settings(user["id"])
+    feeds = db.execute(
+        "SELECT * FROM feeds WHERE user_id = ? ORDER BY name",
+        (user["id"],)).fetchall()
+    feed_rows = []
+    for f in feeds:
+        d = dict(f)
+        d["thinking"] = think_source(f["name"], f["url"])
+        d["sync_info"] = (rel_time(f["last_sync"]) if f["last_sync"]
+                          else "not scanned yet")
+        feed_rows.append(d)
     return render_template("settings.html", user=user, settings=settings,
-                           intervals=INTERVALS)
+                           intervals=INTERVALS, feeds=feed_rows,
+                           rel_time=rel_time)
 
 
 @app.route("/settings/theme", methods=["POST"])

@@ -119,6 +119,15 @@
   <h2>News ({{ news|length }})</h2>
   <p class="muted small">News this period: {{ news_used }} / {{ news_limit }}. {% if sponsor['is_global'] %}Each news item appears as a Sponsored row on the Business tile for readers everywhere.{% else %}Each news item appears as a Sponsored row on the Business tile for readers in {{ sponsor['town_name'] or sponsor['town_slug'] }} and nearby.{% endif %} Expired news hides automatically.</p>
   {% for n in news %}
+  {% if n['status'] == 'removed' %}
+  <div class="removed-news">
+    <strong>{{ n['title'] }}</strong>
+    <div class="muted small">Removed by admin: {{ n['removal_reason'] or 'no reason recorded' }}</div>
+    <form method="post" action="{{ url_for('admin_sponsor_news_restore', nid=n['id']) }}" class="inline-form">
+      <button type="submit" class="btn ghost small">Restore</button>
+    </form>
+  </div>
+  {% else %}
   <form method="post" action="{{ url_for('admin_sponsor_news_edit', nid=n['id']) }}" class="news-edit">
     <label>Headline <input name="title" value="{{ n['title'] }}" required></label>
     <label>Line <input name="text" value="{{ n['text'] or '' }}"></label>
@@ -126,9 +135,18 @@
     <label>Expires <input name="expires" type="date" value="{{ n['expires'] or '' }}"></label>
     <button type="submit" class="btn ghost">Save</button>
     <button type="submit" class="btn ghost" formaction="{{ url_for('admin_sponsor_news_toggle', nid=n['id']) }}">{% if n['is_active'] %}Hide{% else %}Show{% endif %}</button>
-    <button type="submit" class="btn ghost danger" formaction="{{ url_for('admin_sponsor_news_delete', nid=n['id']) }}"
-            onclick="return confirm('Delete this news item?')">Delete</button>
   </form>
+  <form method="post" action="{{ url_for('admin_sponsor_news_remove', nid=n['id']) }}" class="remove-form"
+        onsubmit="return confirm('Remove this news item? The sponsor will be emailed the reason.')">
+    <label>Removal reason
+      <select name="reason">
+        {% for r in removal_reasons %}<option>{{ r }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Note (optional) <input name="reason_note" placeholder="e.g. which rule it broke"></label>
+    <button type="submit" class="btn ghost danger">Remove</button>
+  </form>
+  {% endif %}
   {% if not loop.last %}<hr>{% endif %}
   {% else %}
   <p class="muted">No news yet.</p>

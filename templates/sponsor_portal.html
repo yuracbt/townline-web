@@ -8,6 +8,12 @@
 <div class="card">
   <h2>Your news ({{ news|length }})</h2>
   {% for n in news %}
+  {% if n['status'] == 'removed' %}
+  <div class="removed-news">
+    <strong>{{ n['title'] }}</strong>
+    <div class="muted small">Removed by our team: {{ n['removal_reason'] or 'no reason recorded' }}. Reply to our email if you think this was a mistake.</div>
+  </div>
+  {% else %}
   <form method="post" action="{{ url_for('sponsor_portal_news_edit', code=sponsor['code'], nid=n['id']) }}" class="news-edit">
     <label>Headline <input name="title" value="{{ n['title'] }}" required></label>
     <label>Line <input name="text" value="{{ n['text'] or '' }}"></label>
@@ -17,6 +23,7 @@
     <button type="submit" class="btn ghost danger" formaction="{{ url_for('sponsor_portal_news_delete', code=sponsor['code'], nid=n['id']) }}"
             onclick="return confirm('Delete this news item?')">Delete</button>
   </form>
+  {% endif %}
   {% if not loop.last %}<hr>{% endif %}
   {% else %}
   <p class="muted">No news yet — add your first one below.</p>

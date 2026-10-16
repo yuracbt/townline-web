@@ -3027,6 +3027,11 @@ def admin_pro_town_add(uid):
         flash("User not found.")
         return redirect(url_for("admin_pro"))
     ok, msg = add_user_town(uid, request.form.get("town_name", ""))
+    if ok:
+        # Same "instant scan" the signup flow does: a new town with
+        # "No stories" looks broken, so scan its feeds right away.
+        threading.Thread(target=scan_user, args=(uid,), daemon=True).start()
+        msg += " Scanning its feeds now — stories will appear in a moment."
     flash(msg)
     return redirect(url_for("admin_pro_detail", uid=uid))
 

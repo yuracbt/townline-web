@@ -28,9 +28,7 @@
   <nav>
     <a href="{{ url_for('dashboard') }}"{% if request.endpoint == 'dashboard' %} class="on"{% endif %}>News</a>
     <a href="{{ url_for('places_page') }}"{% if request.endpoint == 'places_page' %} class="on"{% endif %}>Places</a>
-    <a href="{{ url_for('feeds_page') }}"{% if request.endpoint == 'feeds_page' %} class="on"{% endif %}>Feeds</a>
     <a href="{{ url_for('settings_page') }}"{% if request.endpoint == 'settings_page' %} class="on"{% endif %}>Settings</a>
-    <a href="{{ url_for('feedback_page') }}"{% if request.endpoint == 'feedback_page' %} class="on"{% endif %}>Feedback</a>
     {% if is_admin %}<a href="{{ url_for('admin_panel') }}"{% if request.endpoint and request.endpoint.startswith('admin') %} class="on"{% endif %}>Admin</a>{% endif %}
     <a href="{{ url_for('logout') }}">Logout ({{ user['username'] }})</a>
   </nav>
@@ -50,6 +48,7 @@
   <span>© 2026 TownsLine</span>
   <span class="fdot">·</span><a href="{{ url_for('about_page') }}">Our story</a>
   <span class="fdot">·</span><a href="{{ url_for('towns_page') }}">Towns</a>
+  <span class="fdot">·</span><a href="{{ url_for('feedback_page') }}">Feedback</a>
   {% if donate_url %}<span class="fdot">·</span><a class="fbtn" href="{{ donate_url }}" target="_blank" rel="noopener">♥ Donate</a>{% endif %}
 </footer>
 <script>

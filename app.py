@@ -608,6 +608,22 @@ def flag_overdue_sponsors(sponsors):
 PRO_EXTRA_LIMITS = {"pro": 5, "elite": 10}
 
 
+def pro_enabled(user):
+    """Master gate for EVERY Pro UI element (town tiles, towns card,
+    grouped feeds, subscription card).
+
+    Admin-only preview for now. At public launch this needs no change:
+    any user who ever held Pro/Elite (active or lapsed — lapsed users
+    keep the greyed-out towns view) gets the Pro UI; everyone else sees
+    today's single-town product byte-for-byte.
+    """
+    if not user:
+        return False
+    if user["username"] == ADMIN_USERNAME:
+        return True
+    return (user["pro_plan"] or "free") in ("pro", "elite")
+
+
 def pro_extra_limit(plan):
     """Extra towns a paid plan allows (pro: 5, elite: 10, free: 0)."""
     return PRO_EXTRA_LIMITS.get(plan or "free", 0)
@@ -638,22 +654,54 @@ def pro_expiry_str(expires_at):
 def ensure_main_town(user_id):
     """Make sure user_towns has a main-town row matching the user's
     settings.town_name (their 'main' town). Returns the row dict or
-    None when no town is set yet."""
+    None when no town is set yet.
+
+    Also reconciles: if the settings town changed (via the Settings
+    picker), the old main row is updated in place — there is only ever
+    one main town per user.
+    """
     db = get_db()
-    row = db.execute(
-        "SELECT * FROM user_towns WHERE user_id = ? AND is_main = 1",
-        (user_id,)).fetchone()
-    if row:
-        return dict(row)
     s = get_settings(user_id)
     town_name = (s.get("town_name") or "").strip()
     if not town_name:
-        return None
+        row = db.execute(
+            "SELECT * FROM user_towns WHERE user_id = ? AND is_main = 1",
+            (user_id,)).fetchone()
+        return dict(row) if row else None
+    slug = town_slug_for(town_name)
+    row = db.execute(
+        "SELECT * FROM user_towns WHERE user_id = ? AND is_main = 1",
+        (user_id,)).fetchone()
+    if row and row["town_slug"] != slug:
+        # Main town changed in Settings. If the new town is already an
+        # extra, promote it (demote the old main); otherwise rename the
+        # pinned row in place. Either way there is exactly one main town.
+        clash = db.execute(
+            "SELECT id FROM user_towns WHERE user_id = ? AND town_slug = ? "
+            "AND is_main = 0", (user_id, slug)).fetchone()
+        if clash:
+            db.execute("UPDATE user_towns SET is_main = 0 WHERE id = ?",
+                       (row["id"],))
+            db.execute("UPDATE user_towns SET is_main = 1, sort_order = 0, "
+                       "lat = ?, lon = ? WHERE id = ?",
+                       (s.get("lat"), s.get("lon"), clash["id"]))
+        else:
+            db.execute(
+                "UPDATE user_towns SET town_name = ?, town_slug = ?, "
+                "lat = ?, lon = ?, sort_order = 0 WHERE id = ?",
+                (town_name, slug, s.get("lat"), s.get("lon"), row["id"]))
+        db.commit()
+        row = db.execute(
+            "SELECT * FROM user_towns WHERE user_id = ? AND is_main = 1",
+            (user_id,)).fetchone()
+        return dict(row) if row else None
+    if row:
+        return dict(row)
     try:
         db.execute(
             "INSERT INTO user_towns (user_id, town_name, town_slug, lat, "
-            "lon, is_main, created_at) VALUES (?,?,?,?,?,1,?)",
-            (user_id, town_name, town_slug_for(town_name),
+            "lon, is_main, sort_order, created_at) VALUES (?,?,?,?,?,1,0,?)",
+            (user_id, town_name, slug,
              s.get("lat"), s.get("lon"), int(time.time())))
         db.commit()
     except sqlite3.IntegrityError:
@@ -665,12 +713,15 @@ def ensure_main_town(user_id):
 
 
 def get_user_towns(user_id):
-    """User's town list, main town first. Ensures the main row exists."""
+    """User's town list: main town pinned first, extras in the user's
+    custom sort_order. Ensures the main row exists. Single source of
+    truth for dashboard tiles, Settings, Places and feeds grouping."""
     ensure_main_town(user_id)
     db = get_db()
     rows = db.execute(
         "SELECT * FROM user_towns WHERE user_id = ? "
-        "ORDER BY is_main DESC, town_name", (user_id,)).fetchall()
+        "ORDER BY is_main DESC, sort_order ASC, created_at ASC",
+        (user_id,)).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -703,11 +754,15 @@ def add_user_town(user_id, town_name, lat=None, lon=None):
                        f"on the {plan.capitalize()} plan.")
     before = {r["id"] for r in db.execute(
         "SELECT id FROM feeds WHERE user_id = ?", (user_id,))}
+    max_order = db.execute(
+        "SELECT COALESCE(MAX(sort_order), 0) m FROM user_towns "
+        "WHERE user_id = ?", (user_id,)).fetchone()["m"]
     try:
         db.execute(
             "INSERT INTO user_towns (user_id, town_name, town_slug, lat, "
-            "lon, is_main, created_at) VALUES (?,?,?,?,?,0,?)",
-            (user_id, town_name, slug, lat, lon, int(time.time())))
+            "lon, is_main, sort_order, created_at) VALUES (?,?,?,?,?,0,?,?)",
+            (user_id, town_name, slug, lat, lon, max_order + 1,
+             int(time.time())))
     except sqlite3.IntegrityError:
         return False, f"{town_name} is already in the town list."
     # Seed feeds for the new town, tagging the fresh feed rows so the
@@ -721,6 +776,35 @@ def add_user_town(user_id, town_name, lat=None, lon=None):
                        (slug, r["id"]))
     db.commit()
     return True, f"Added {town_name}."
+
+
+def move_user_town(user_id, town_id, direction):
+    """Move an extra town up/down in the user's custom order (swaps
+    sort_order with the adjacent extra town). The main town is pinned
+    first and can never move. Returns (ok, message)."""
+    db = get_db()
+    row = db.execute("SELECT * FROM user_towns WHERE id = ? AND user_id = ?",
+                     (town_id, user_id)).fetchone()
+    if not row:
+        return False, "Town not found."
+    if row["is_main"]:
+        return False, "The main town is pinned and can't be moved."
+    extras = [dict(r) for r in db.execute(
+        "SELECT * FROM user_towns WHERE user_id = ? AND is_main = 0 "
+        "ORDER BY sort_order ASC, created_at ASC", (user_id,)).fetchall()]
+    idx = next((i for i, t in enumerate(extras) if t["id"] == town_id), None)
+    if idx is None:
+        return False, "Town not found."
+    j = idx - 1 if direction == "up" else idx + 1
+    if j < 0 or j >= len(extras):
+        return False, "Already at the edge."
+    a, b = extras[idx], extras[j]
+    db.execute("UPDATE user_towns SET sort_order = ? WHERE id = ?",
+               (b["sort_order"], a["id"]))
+    db.execute("UPDATE user_towns SET sort_order = ? WHERE id = ?",
+               (a["sort_order"], b["id"]))
+    db.commit()
+    return True, f"Moved {a['town_name']} {'up' if direction == 'up' else 'down'}."
 
 
 def remove_user_town(user_id, town_id):
@@ -740,69 +824,6 @@ def remove_user_town(user_id, town_id):
     db.execute("DELETE FROM user_towns WHERE id = ?", (town_id,))
     db.commit()
     return True, f"Removed {row['town_name']}."
-
-
-def pro_town_news(user_id, view="unified", force_active=False,
-                  story_limit=500):
-    """Pro news views for a user.
-
-    view: 'unified' (all towns in one line, town chip per story) or
-    'towns' (grouped per town). Returns a dict with towns (each with
-    its stories, story_count and a greyed flag), the unified story
-    list, and the plan status. When the plan is not active, only
-    main-town stories are included; extra towns stay listed but
-    flagged greyed with no stories. force_active is for the admin
-    preview so it always shows the full multi-town view.
-    """
-    db = get_db()
-    user = db.execute("SELECT * FROM users WHERE id = ?",
-                      (user_id,)).fetchone()
-    status, plan, expires_at = pro_status(user)
-    active = force_active or status == "active"
-    towns = get_user_towns(user_id)
-    main = next((t for t in towns if t["is_main"]), None)
-    main_slug = main["town_slug"] if main else ""
-
-    rows = db.execute(
-        "SELECT s.*, COALESCE(f.town_slug, '') AS ftown "
-        "FROM stories s LEFT JOIN feeds f ON f.id = s.feed_id "
-        "WHERE s.user_id = ? ORDER BY s.published DESC LIMIT ?",
-        (user_id, story_limit)).fetchall()
-
-    def story_town(story):
-        ft = story["ftown"] or ""
-        for t in towns:
-            if ft == t["town_slug"]:
-                return t
-        # Legacy feeds predate town_slug: they belong to the main town.
-        return main
-
-    unified = []
-    grouped = {t["id"]: [] for t in towns}
-    for r in rows:
-        t = story_town(r)
-        if t is None:
-            continue
-        if not t["is_main"] and not active:
-            continue  # lapsed: extra towns contribute no news
-        d = dict(r)
-        d["town_name"] = t["town_name"]
-        d["town_slug"] = t["town_slug"]
-        d["rel"] = rel_time(d["published"])
-        unified.append(d)
-        grouped[t["id"]].append(d)
-
-    town_views = []
-    for t in towns:
-        greyed = bool(not t["is_main"] and not active)
-        town_views.append({**t, "greyed": greyed,
-                           "stories": grouped[t["id"]] if not greyed else [],
-                           "story_count": (len(grouped[t["id"]])
-                                           if not greyed else 0)})
-    return {"towns": town_views, "unified": unified, "view": view,
-            "status": status if not force_active else "active",
-            "plan": plan, "expires_at": expires_at,
-            "main_town": main, "active": active}
 
 
 def send_pro_renewal_notices():
@@ -1112,6 +1133,10 @@ def init_db():
         "ALTER TABLE users ADD COLUMN pro_notice_sent_for INTEGER DEFAULT 0",
         "ALTER TABLE settings ADD COLUMN pro_view TEXT DEFAULT 'unified'",
         "ALTER TABLE feeds ADD COLUMN town_slug TEXT DEFAULT ''",
+        "ALTER TABLE user_towns ADD COLUMN sort_order INTEGER DEFAULT 0",
+        "ALTER TABLE feeds ADD COLUMN show_all INTEGER DEFAULT 0",
+        "ALTER TABLE settings ADD COLUMN pro_town_filter TEXT DEFAULT 'all'",
+        "ALTER TABLE places ADD COLUMN town_slug TEXT DEFAULT ''",
     ):
         try:
             db.execute(ddl)
@@ -1127,6 +1152,7 @@ def init_db():
             lat REAL,
             lon REAL,
             is_main INTEGER DEFAULT 0,
+            sort_order INTEGER DEFAULT 0,
             created_at INTEGER NOT NULL,
             UNIQUE(user_id, town_slug),
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -1137,6 +1163,18 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_user_towns_user "
         "ON user_towns(user_id)"
     )
+    # Backfill sort_order: main town first (0), extras in creation order.
+    for u in db.execute("SELECT DISTINCT user_id FROM user_towns").fetchall():
+        n = 1
+        for t in db.execute(
+                "SELECT id, is_main FROM user_towns WHERE user_id = ? "
+                "AND (sort_order IS NULL OR sort_order = 0) "
+                "ORDER BY is_main DESC, created_at",
+                (u["user_id"],)).fetchall():
+            db.execute("UPDATE user_towns SET sort_order = ? WHERE id = ?",
+                       (0 if t["is_main"] else n, t["id"]))
+            if not t["is_main"]:
+                n += 1
     # Fix slugs for non-English town names: the old ASCII-only slugify
     # collapsed every non-Latin name to '', cross-matching unrelated
     # towns. Recompute from the stored town name (ASCII names are
@@ -1397,6 +1435,25 @@ def admin_required(view):
     def wrapper(*a, **kw):
         user = current_user()
         if not user or user["username"] != ADMIN_USERNAME:
+            flash("That page is for the administrator only.")
+            return redirect(url_for("dashboard"))
+        return view(*a, **kw)
+
+    return wrapper
+
+
+def pro_required(view):
+    """Gate for Pro self-service routes (towns management, feed flags).
+    Mirrors pro_enabled(): the admin always, plus anyone who ever held
+    Pro/Elite. Mutating routes additionally require an active plan
+    where it matters (add_user_town enforces it itself).
+    """
+    from functools import wraps
+
+    @wraps(view)
+    def wrapper(*a, **kw):
+        user = current_user()
+        if not pro_enabled(user):
             flash("That page is for the administrator only.")
             return redirect(url_for("dashboard"))
         return view(*a, **kw)
@@ -1924,6 +1981,7 @@ def seed_places_for_town(user_id, town_name):
     """Preload curated directory places for the town into the user's
     Places tab. Returns the number added."""
     db = get_db()
+    slug = town_slug_for(town_name)
     have = {norm_url(r["url"]) for r in
             db.execute("SELECT url FROM places WHERE user_id = ?",
                        (user_id,)).fetchall()}
@@ -1931,8 +1989,9 @@ def seed_places_for_town(user_id, town_name):
     for p in suggested_places_for_town(town_name):
         if norm_url(p["url"]) not in have:
             db.execute(
-                "INSERT INTO places (user_id, name, url) VALUES (?,?,?)",
-                (user_id, p["name"], p["url"]),
+                "INSERT INTO places (user_id, name, url, town_slug) "
+                "VALUES (?,?,?,?)",
+                (user_id, p["name"], p["url"], slug),
             )
             have.add(norm_url(p["url"]))
             added += 1
@@ -3055,84 +3114,71 @@ def admin_pro_town_remove(uid, tid):
     return redirect(url_for("admin_pro_detail", uid=uid))
 
 
-@app.route("/pro")
+@app.route("/settings/towns/add", methods=["POST"])
 @login_required
-@admin_required
-def pro_overview():
-    """Admin-only preview of the subscription card as a subscriber
-    would see it (plan, status, expiry, towns used)."""
+@pro_required
+def settings_town_add():
+    """Add an extra town from the Settings towns card (Nominatim picker).
+    Same rules as the admin route: active plan required, slot limit
+    enforced, feeds seeded + instant scan on success."""
     user = current_user()
-    towns = get_user_towns(user["id"])
-    status, plan, expires_at = pro_status(user)
-    extras = len([t for t in towns if not t["is_main"]])
-    view = (get_settings(user["id"]).get("pro_view") or "unified")
-    return render_template(
-        "pro.html", user=user, status=status, plan=plan,
-        expires_at=expires_at, expiry_str=pro_expiry_str(expires_at),
-        towns=towns, extras=extras,
-        max_towns=1 + pro_extra_limit(plan), view=view)
+    ok, msg = add_user_town(
+        user["id"], request.form.get("town_name", ""),
+        lat=_opt_float(request.form.get("lat")),
+        lon=_opt_float(request.form.get("lon")))
+    if ok:
+        threading.Thread(target=scan_user, args=(user["id"],),
+                         daemon=True).start()
+        msg += " Scanning its feeds now — stories will appear in a moment."
+    flash(msg)
+    return redirect(url_for("settings_page") + "#towns")
 
 
-@app.route("/pro/view", methods=["POST"])
+@app.route("/settings/towns/<int:tid>/move", methods=["POST"])
 @login_required
-@admin_required
-def pro_set_view():
-    """Persist the news-view toggle (unified / per-town) per user."""
+@pro_required
+def settings_town_move(tid):
+    """Reorder an extra town up/down. Main town is pinned."""
     user = current_user()
-    view = request.form.get("view", "unified")
-    if view not in ("unified", "towns"):
-        view = "unified"
-    get_db().execute("UPDATE settings SET pro_view = ? WHERE user_id = ?",
-                     (view, user["id"]))
-    get_db().commit()
-    flash(f"News view: {'one line' if view == 'unified' else 'per town'}.")
-    return redirect(url_for("pro_overview"))
+    direction = request.form.get("direction", "down")
+    if direction not in ("up", "down"):
+        direction = "down"
+    ok, msg = move_user_town(user["id"], tid, direction)
+    flash(msg)
+    return redirect(url_for("settings_page") + "#towns")
 
 
-@app.route("/pro/news")
+@app.route("/settings/towns/<int:tid>/remove", methods=["POST"])
 @login_required
-@admin_required
-def pro_news():
-    """Admin-only preview of the two Pro news views (unified and
-    per-town) for the admin's own towns. Seeds demo extra towns when
-    the admin has none, so the preview always shows the multi-town
-    layout. The preview is forced active so extra towns always render.
-    """
+@pro_required
+def settings_town_remove(tid):
+    """Remove an extra town (never the main town)."""
+    user = current_user()
+    ok, msg = remove_user_town(user["id"], tid)
+    flash(msg)
+    return redirect(url_for("settings_page") + "#towns")
+
+
+@app.route("/settings/feeds/<int:fid>/show_all", methods=["POST"])
+@login_required
+@pro_required
+def feed_show_all(fid):
+    """Toggle 'show with all': a flagged feed's stories appear in every
+    town's news line, not just its home town's."""
     user = current_user()
     db = get_db()
-    view = request.args.get("view", "") or (
-        get_settings(user["id"]).get("pro_view") or "unified")
-    if view not in ("unified", "towns"):
-        view = "unified"
-    towns = get_user_towns(user["id"])
-    if len(towns) < 2:
-        for demo in ("Calgary", "Vancouver"):
-            slug = town_slug_for(demo)
-            if any(t["town_slug"] == slug for t in towns):
-                continue
-            try:
-                db.execute(
-                    "INSERT INTO user_towns (user_id, town_name, "
-                    "town_slug, is_main, created_at) "
-                    "VALUES (?,?,?,0,?)",
-                    (user["id"], demo, slug, int(time.time())))
-                before = {r["id"] for r in db.execute(
-                    "SELECT id FROM feeds WHERE user_id = ?",
-                    (user["id"],))}
-                seed_default_feeds(user["id"], demo)
-                for r in db.execute(
-                        "SELECT id FROM feeds WHERE user_id = ?",
-                        (user["id"],)):
-                    if r["id"] not in before:
-                        db.execute("UPDATE feeds SET town_slug = ? "
-                                   "WHERE id = ?", (slug, r["id"]))
-                db.commit()
-            except sqlite3.IntegrityError:
-                pass
-        towns = get_user_towns(user["id"])
-    data = pro_town_news(user["id"], view=view, force_active=True)
-    return render_template("pro_news.html", data=data, view=view,
-                           user=user)
+    feed = db.execute("SELECT * FROM feeds WHERE id = ? AND user_id = ?",
+                      (fid, user["id"])).fetchone()
+    if not feed:
+        flash("Feed not found.")
+    else:
+        db.execute("UPDATE feeds SET show_all = ? WHERE id = ?",
+                   (0 if feed["show_all"] else 1, fid))
+        db.commit()
+        flash(f"{'Pinned' if not feed['show_all'] else 'Unpinned'} "
+              f"{feed['name']} {'to' if not feed['show_all'] else 'from'} "
+              f"all towns.")
+    return redirect(url_for("settings_page") + "#feeds")
 
 
 # ---------------------------------------------------------------- sponsor portal
@@ -3239,6 +3285,44 @@ def dashboard():
     active_cat = request.args.get("category", "")
     unread_only = request.args.get("unread") == "1"
 
+    # ---- Pro: town filter ------------------------------------------------
+    # ?town=all|<slug> switches the news line between towns. Persisted per
+    # user so a refresh keeps the view. Ignored entirely for non-Pro users.
+    penabled = pro_enabled(user)
+    pro_towns, pro_status_s, pro_plan = [], "lapsed", "free"
+    town_filter = "all"
+    if penabled:
+        pro_towns = get_user_towns(user["id"])
+        pro_status_s, pro_plan, _ = pro_status(user)
+        pro_active = pro_status_s == "active"
+        slugs = {t["town_slug"] for t in pro_towns}
+        main_slug_all = next(
+            (t["town_slug"] for t in pro_towns if t["is_main"]), "")
+        qtown = request.args.get("town", "")
+        if qtown:
+            # Lapsed: extra towns are greyed and unreachable — fall back
+            # to the main town rather than showing an empty line.
+            main_slug = next(
+                (t["town_slug"] for t in pro_towns if t["is_main"]), "")
+            if qtown != "all" and (qtown not in slugs or
+                                   (not pro_active and qtown != main_slug)):
+                qtown = main_slug or "all"
+            town_filter = qtown if qtown in slugs or qtown == "all" else "all"
+            if (settings.get("pro_town_filter") or "all") != town_filter:
+                db.execute("UPDATE settings SET pro_town_filter = ? "
+                           "WHERE user_id = ?", (town_filter, user["id"]))
+                db.commit()
+                settings["pro_town_filter"] = town_filter
+        else:
+            saved = (settings.get("pro_town_filter") or "all")
+            main_slug = next(
+                (t["town_slug"] for t in pro_towns if t["is_main"]), "")
+            if saved != "all" and (saved not in slugs or
+                                   (not pro_active and saved != main_slug)):
+                saved = main_slug or "all"
+            town_filter = saved
+    # ----------------------------------------------------------------------
+
     cats = [r["category"] for r in db.execute(
         "SELECT DISTINCT category FROM stories WHERE user_id = ? "
         "ORDER BY category", (user["id"],)).fetchall()]
@@ -3273,6 +3357,8 @@ def dashboard():
             args["category"] = category
         if unread:
             args["unread"] = 1
+        if penabled and town_filter != "all":
+            args["town"] = town_filter
         return url_for("dashboard", **args)
 
     def page_url(p):
@@ -3281,9 +3367,14 @@ def dashboard():
             args["category"] = active_cat
         if unread_only:
             args["unread"] = 1
+        if penabled and town_filter != "all":
+            args["town"] = town_filter
         if p > 1:
             args["page"] = p
         return url_for("dashboard", **args)
+
+    def town_url(slug):
+        return url_for("dashboard", town=slug)
 
     chips = [
         {"label": "All", "key": "__all__", "url": chip_url(unread=unread_only),
@@ -3313,7 +3404,25 @@ def dashboard():
         params.append(active_cat)
     if unread_only:
         where += " AND s.is_read = 0"
-    base = ("SELECT s.*, f.name AS feed_name FROM stories s "
+    if penabled and (town_filter != "all" or not pro_active):
+        # Per-town line: this town's feeds plus feeds pinned "show with
+        # all" (active plans only). Legacy untagged feeds belong to the
+        # main town. Lapsed: main-town news only, even on "All towns" —
+        # no news from extra towns until the subscription is renewed.
+        trow = next((t for t in pro_towns if t["town_slug"] == town_filter),
+                    None)
+        if town_filter == "all" or (trow and trow["is_main"]):
+            fslugs = [main_slug_all, ""]
+        else:
+            fslugs = [town_filter]
+        clause = ("COALESCE(f.town_slug, '') IN (%s)" %
+                  ",".join("?" * len(fslugs)))
+        params.extend(fslugs)
+        if pro_active and town_filter != "all":
+            clause = "(%s OR COALESCE(f.show_all, 0) = 1)" % clause
+        where += " AND " + clause
+    base = ("SELECT s.*, f.name AS feed_name, "
+            "COALESCE(f.town_slug, '') AS ftown FROM stories s "
             "LEFT JOIN feeds f ON f.id = s.feed_id " + where)
 
     # Stories per page (0 = All: everything on one page, no pagination).
@@ -3323,7 +3432,8 @@ def dashboard():
     page, total_pages = 1, 1
     if page_size > 0:
         total = db.execute(
-            "SELECT COUNT(*) c FROM stories s " + where, params).fetchone()["c"]
+            "SELECT COUNT(*) c FROM stories s LEFT JOIN feeds f "
+            "ON f.id = s.feed_id " + where, params).fetchone()["c"]
         total_pages = max(1, (total + page_size - 1) // page_size)
         try:
             page = int(request.args.get("page", 1))
@@ -3340,6 +3450,41 @@ def dashboard():
     stories = [dict(r) for r in stories]
     for st in stories:
         st["is_sponsor"] = False
+
+    # ---- Pro: town chips + tiles -------------------------------------
+    pro_show_chips = False
+    pro_tiles = []
+    dash_title = settings.get("town_name") or "Your town"
+    if penabled:
+        by_slug = {t["town_slug"]: t for t in pro_towns}
+        main = next((t for t in pro_towns if t["is_main"]), None)
+        if town_filter == "all":
+            # Unified line: every story carries its town's chip.
+            pro_show_chips = True
+            for st in stories:
+                ft = st.get("ftown") or ""
+                t = by_slug.get(ft) or main
+                st["town_name"] = t["town_name"] if t else ""
+                st["town_slug"] = t["town_slug"] if t else ""
+            dash_title = "All towns"
+        else:
+            t = by_slug.get(town_filter)
+            if t:
+                dash_title = t["town_name"]
+        pro_tiles = [{
+            "slug": "all", "name": "All towns", "is_main": False,
+            "greyed": False, "active": town_filter == "all",
+            "url": town_url("all"),
+        }]
+        for t in pro_towns:
+            greyed = bool(not t["is_main"] and not pro_active)
+            pro_tiles.append({
+                "slug": t["town_slug"], "name": t["town_name"],
+                "is_main": bool(t["is_main"]), "greyed": greyed,
+                "active": town_filter == t["town_slug"],
+                "url": None if greyed else town_url(t["town_slug"]),
+            })
+    # ----------------------------------------------------------------------
     # Sponsor news reads as news in the Business tile: merge the
     # sponsor rows into the story list (page 1 only, so they never
     # repeat across pages), newest first.
@@ -3363,6 +3508,9 @@ def dashboard():
         page_url=page_url,
         unread_on_url=chip_url(category=active_cat or None, unread=True),
         unread_off_url=chip_url(category=active_cat or None, unread=False),
+        pro_enabled=penabled, pro_tiles=pro_tiles,
+        pro_show_chips=pro_show_chips, pro_town_filter=town_filter,
+        dash_title=dash_title,
     )
 
 
@@ -3615,8 +3763,31 @@ def places_page():
         "SELECT * FROM places WHERE user_id = ? ORDER BY name",
         (user["id"],)).fetchall()
     sponsors = get_sponsors_for_user(settings)
+    penabled = pro_enabled(user)
+    pro_towns, pro_place_groups = [], []
+    if penabled:
+        # Group places under town headers in the user's town order;
+        # untagged (legacy / non-Pro) places join the main town.
+        pro_towns = get_user_towns(user["id"])
+        main_slug = next((t["town_slug"] for t in pro_towns if t["is_main"]),
+                         "")
+        groups = {t["town_slug"]: {"town_name": t["town_name"],
+                                   "town_slug": t["town_slug"],
+                                   "is_main": bool(t["is_main"]),
+                                   "places": []} for t in pro_towns}
+        for p in places:
+            d = dict(p)
+            g = groups.get(d.get("town_slug") or "") or groups.get(main_slug)
+            if g is None:
+                continue
+            g["places"].append(d)
+        pro_place_groups = [groups[t["town_slug"]] for t in pro_towns]
+        for g in pro_place_groups:
+            g["places"].sort(key=lambda d: d["name"].lower())
     return render_template("places.html", user=user, settings=settings,
-                           places=places, sponsors=sponsors)
+                           places=places, sponsors=sponsors,
+                           pro_enabled=penabled, pro_towns=pro_towns,
+                           pro_place_groups=pro_place_groups)
 
 
 @app.route("/api/places/suggestions")
@@ -3659,10 +3830,17 @@ def place_add():
     url = request.form.get("url", "").strip()
     added = False
     duplicate = False
+    # Pro users file a place under a chosen town (defaults to main).
+    town_slug = (request.form.get("town_slug") or "").strip()
     if url:
         if not name:
             name = url
         db = get_db()
+        user = current_user()
+        if not town_slug and pro_enabled(user):
+            towns = get_user_towns(user["id"])
+            main = next((t for t in towns if t["is_main"]), None)
+            town_slug = main["town_slug"] if main else ""
         have = {norm_url(r["url"]) for r in
                 db.execute("SELECT url FROM places WHERE user_id = ?",
                            (session["user_id"],)).fetchall()}
@@ -3670,8 +3848,9 @@ def place_add():
             duplicate = True
         else:
             db.execute(
-                "INSERT INTO places (user_id, name, url) VALUES (?,?,?)",
-                (session["user_id"], name, url),
+                "INSERT INTO places (user_id, name, url, town_slug) "
+                "VALUES (?,?,?,?)",
+                (session["user_id"], name, url, town_slug),
             )
             db.commit()
             added = True
@@ -3730,9 +3909,40 @@ def settings_page():
         d["sync_info"] = (rel_time(f["last_sync"]) if f["last_sync"]
                           else "not scanned yet")
         feed_rows.append(d)
+    penabled = pro_enabled(user)
+    pro_towns, pro_feed_groups, pro_sub = [], [], None
+    if penabled:
+        pro_towns = get_user_towns(user["id"])
+        status, plan, expires_at = pro_status(user)
+        extras = [t for t in pro_towns if not t["is_main"]]
+        max_extras = pro_extra_limit(plan) if plan in ("pro", "elite") else 5
+        pro_sub = {
+            "plan": plan, "status": status, "expires_at": expires_at,
+            "expiry_str": pro_expiry_str(expires_at),
+            "extras": len(extras), "max_extras": max_extras,
+            "max_towns": 1 + max_extras,
+        }
+        # Feeds grouped under town headers in town order; untagged
+        # (legacy) feeds belong to the main town.
+        main_slug = next((t["town_slug"] for t in pro_towns if t["is_main"]),
+                         "")
+        groups = {t["town_slug"]: {"town_name": t["town_name"],
+                                   "town_slug": t["town_slug"],
+                                   "is_main": bool(t["is_main"]),
+                                   "feeds": []} for t in pro_towns}
+        for d in feed_rows:
+            g = groups.get(d.get("town_slug") or "") or groups.get(main_slug)
+            if g is None:
+                continue
+            g["feeds"].append(d)
+        pro_feed_groups = [groups[t["town_slug"]] for t in pro_towns]
+        for g in pro_feed_groups:
+            g["feeds"].sort(key=lambda d: d["name"].lower())
     return render_template("settings.html", user=user, settings=settings,
                            intervals=INTERVALS, feeds=feed_rows,
-                           rel_time=rel_time)
+                           rel_time=rel_time, pro_enabled=penabled,
+                           pro_towns=pro_towns,
+                           pro_feed_groups=pro_feed_groups, pro_sub=pro_sub)
 
 
 @app.route("/settings/theme", methods=["POST"])

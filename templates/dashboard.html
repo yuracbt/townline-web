@@ -3,7 +3,7 @@
 {% block content %}
 <div class="dashhead">
   <div>
-    <h1>{{ settings.get('town_name') or 'Your town' }}</h1>
+    <h1>{{ dash_title }}</h1>
     <p class="muted">
       {% if active_cat %}
         {% if cat_unread and settings.get('notify_enabled') %}
@@ -49,6 +49,16 @@
   </label>
 </div>
 
+{% if pro_enabled %}
+<div class="towntiles">
+  {% for t in pro_tiles %}
+  {% if t.greyed %}<span class="towntile greyed" title="Renew to see this town's news">{{ t.name }}</span>
+  {% elif t.active %}<span class="towntile on">{% if t.is_main %}📌 {% endif %}{{ t.name }}</span>
+  {% else %}<a class="towntile" href="{{ t.url }}">{% if t.is_main %}📌 {% endif %}{{ t.name }}</a>{% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if not stories %}
 <p class="muted empty">
   {% if unread_only %}No unread stories here — you're all caught up.
@@ -76,7 +86,7 @@
   <li class="story{% if s['is_read'] %} read{% else %} unread{% endif %}" data-id="{{ s['id'] }}" data-url="{{ s['url'] }}" data-cat="{{ s['category'] }}">
     <div class="srow">
       <a class="stitle" href="{{ s['url'] }}" target="_blank" rel="noopener">{{ s['title'] }}</a>
-      <span class="cat">{{ s['category'] }}</span>
+      <span class="cat">{{ s['category'] }}</span>{% if pro_show_chips and s['town_name'] %}<span class="town-chip">{{ s['town_name'] }}</span>{% endif %}
     </div>
     <div class="smeta">
       <span>{{ s['feed_name'] or 'Feed' }}</span> ·

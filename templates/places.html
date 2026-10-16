@@ -21,6 +21,27 @@
 {% endif %}
 
 <h2>Your places</h2>
+{% if pro_enabled %}
+{% for g in pro_place_groups %}
+<h3 style="margin:14px 0 4px">{% if g.is_main %}📌 {% endif %}{{ g.town_name }}</h3>
+<ul class="feedlist">
+{% for p in g.places %}
+  <li class="feed">
+    <div>
+      <strong><a href="{{ p['url'] }}" target="_blank" rel="noopener">{{ p['name'] }}</a></strong>
+      <div class="muted small">{{ p['url'] }}</div>
+    </div>
+    <form method="post" action="{{ url_for('place_delete', pid=p['id']) }}"
+          onsubmit="return confirm('Remove this place?')">
+      <button type="submit" class="btn small danger">Remove</button>
+    </form>
+  </li>
+{% else %}
+  <li class="muted">No places saved for {{ g.town_name }} yet.</li>
+{% endfor %}
+</ul>
+{% endfor %}
+{% else %}
 <ul class="feedlist">
 {% for p in places %}
   <li class="feed">
@@ -37,12 +58,22 @@
   <li class="muted">No places saved yet — add some from the suggestions below.</li>
 {% endfor %}
 </ul>
+{% endif %}
 
 <h2>Add a place</h2>
 <div class="card">
   <form method="post" action="{{ url_for('place_add') }}">
     <label>Name <input name="name" placeholder="e.g. City Theatre"></label>
     <label>Page URL <input name="url" type="url" placeholder="https://…" required></label>
+    {% if pro_enabled %}
+    <label>Town
+      <select name="town_slug">
+        {% for t in pro_towns %}
+        <option value="{{ t.town_slug }}"{% if t.is_main %} selected{% endif %}>{{ t.town_name }}{% if t.is_main %} (main){% endif %}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endif %}
     <button type="submit">Add place</button>
   </form>
 </div>

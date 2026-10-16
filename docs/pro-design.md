@@ -44,6 +44,7 @@ CREATE TABLE user_towns (
     lat        REAL,
     lon        REAL,
     is_main    INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL DEFAULT 0,
     UNIQUE (user_id, town_slug)
 );
@@ -51,24 +52,42 @@ CREATE INDEX idx_user_towns_user ON user_towns(user_id);
 ```
 
 - `is_main = 1` — the user's home town, backfilled from the `settings` table
-  (see §1.4). The main town can never be removed and is never greyed out.
+  (see §1.4). The main town can never be removed, moved, or greyed out.
+- `sort_order` — the user's custom town order (main = 0, extras 1..n).
+  Drives the dashboard tiles, Settings rows, Places groups and feeds groups.
 - Extra towns: count limit = `5` for Pro, `10` for Elite. Enforced at insert
   (UI + server-side check).
 - In Phase 1 only the admin user gets extra towns; the schema is multi-user
   ready.
 
-### 1.3 `feeds` — new column
+### 1.3 `feeds` — new columns
 
 | Column | Type | Default | Meaning |
 |---|---|---|---|
-| `town_slug` | TEXT | `''` | Which town this feed belongs to. `''` = legacy / unassigned |
+| `town_slug` | TEXT | `''` | Which town this feed belongs to. `''` = legacy / main town |
+| `show_all` | INTEGER | `0` | `1` = "show with all": this feed's stories appear in **every** town's news line |
 
 Stories map to towns via the feed join: `stories.feed_id → feeds.town_slug`.
 Set at feed-seeding time for each town (mirror of the existing town-aware
 signup seeding: curated feeds + directory places + auto category feeds per
 town).
 
-### 1.4 Migration notes (existing DBs)
+### 1.4 `settings` — new column
+
+| Column | Type | Default | Meaning |
+|---|---|---|---|
+| `pro_town_filter` | TEXT | `'all'` | Persisted dashboard town filter: `'all'` or a town slug |
+
+### 1.5 `places` — new column
+
+| Column | Type | Default | Meaning |
+|---|---|---|---|
+| `town_slug` | TEXT | `''` | Which town this place belongs to. `''` = legacy / main town |
+
+Tagged at seed time (`seed_places_for_town`) and on manual add (Pro users
+pick the town; defaults to main).
+
+### 1.6 Migration notes (existing DBs)
 
 SQLite `ALTER TABLE … ADD COLUMN` is supported; follow the existing pattern in
 `init_db()` (cf. the `sponsors.notice_sent_for` migration ~line 855):
@@ -78,109 +97,106 @@ ALTER TABLE users ADD COLUMN pro_plan TEXT DEFAULT 'free';
 ALTER TABLE users ADD COLUMN pro_expires_at INTEGER DEFAULT 0;
 ALTER TABLE users ADD COLUMN pro_notice_sent_for INTEGER DEFAULT 0;
 ALTER TABLE feeds ADD COLUMN town_slug TEXT DEFAULT '';
+ALTER TABLE user_towns ADD COLUMN sort_order INTEGER DEFAULT 0;
+ALTER TABLE feeds ADD COLUMN show_all INTEGER DEFAULT 0;
+ALTER TABLE settings ADD COLUMN pro_town_filter TEXT DEFAULT 'all';
+ALTER TABLE places ADD COLUMN town_slug TEXT DEFAULT '';
 ```
 
 Guard each with `PRAGMA table_info` checks (existing convention).
 
 **Backfill:**
 1. For every user with a `settings.town_name`, insert one `user_towns` row
-   with `is_main = 1`, `town_slug = town_slug_for(town_name)`, `lat/lon` from
-   the settings/geocode cache where available.
-2. For every user's existing feeds (`''` town_slug), set
-   `feeds.town_slug = <their main town slug>` — so the current single-town
-   behavior is preserved exactly for everyone.
+   with `is_main = 1`, `sort_order = 0`, `town_slug = town_slug_for(town_name)`,
+   `lat/lon` from the settings/geocode cache where available.
+2. Existing feeds keep `town_slug = ''`, which the queries treat as the main
+   town — so the current single-town behavior is preserved exactly for
+   everyone, with no data rewrite.
+3. `sort_order` backfill: main = 0, existing extras numbered 1..n by
+   `created_at`.
 
 ---
 
-## 2. UX flows (per state)
+## 2. UX flows (per state) — INTEGRATED approach
 
-All flows below describe the **target** UX. In Phase 1 it renders only for the
-admin user; the prototype demonstrates it with dummy data.
+There are no separate Pro pages. The live dashboard, Settings and Places
+become Pro-aware behind one gate, `pro_enabled(user)` (see §6). Non-Pro
+users see byte-for-byte today's UI.
 
-### 2.1 Never had Pro (admin on Free plan)
+### 2.1 Dashboard — town tiles row
 
-- **My towns** card: only the main town listed, marked `★ Main`.
-- **Add a town** → prompts to upgrade: "Pro unlocks up to 5 extra towns"
-  with a link to the Subscription page. No town can be added.
-- News line: unchanged — main town only (identical to today's dashboard).
-- Subscription page: Free plan card highlighted; Pro/Elite cards show
-  **Upgrade** buttons (disabled in Phase 1 with note "manual grant by admin"
-  — or admin self-grant flow, see §2.5).
+Directly above the news line, a slim tile row (rendered only when
+`pro_enabled`):
 
-### 2.2 Active Pro
+`[All towns] [📌 Airdrie] [Calgary] [Lviv]`
 
-- **My towns**: main `★ Main` + extras (e.g. 3/6 used). Each extra town row:
-  name, added date, `Remove` link, story count.
-- **Add a town**: town search (reuse the existing `/towns` search), adds feed
-  set + instant scan for that town. Blocked with a clear message at 5 extras.
-- News line: town selector + **view toggle**: `All together` (unified, §2.6)
-  | `By town` (grouped, §2.7). Preference persisted per user (settings or a
-  `users.news_view` column — implementer's choice; settings table is fine).
-- Subscription page: Pro card highlighted, status badge **Active**,
-  `Renews 2027-10-15`, towns used `3/6`, **Renew** button (extends expiry),
-  **Upgrade to Elite** button.
+- **All towns**: the unified line — every story in one `<ul class="stories">`,
+  each row carrying a town chip (`.town-chip`) next to the category pill.
+- **A town tile**: that town's stories only, plus any feed flagged
+  "show with all" (see §2.4).
+- Clicking a tile switches via `?town=<slug>` / `?town=all`; the choice
+  persists per user (`settings.pro_town_filter`, default `all`).
+- The main town tile is pinned with 📌 and always first; extras follow in
+  the user's custom order (`user_towns.sort_order`) — the same order used
+  in Settings, Places and feeds.
+- The dashboard H1 reflects the filter ("All towns" / town name).
+- Category chips, unread counts, pagination and sponsor merging compose
+  with the town filter unchanged.
 
-### 2.3 Active Elite
+### 2.2 Lapsed (expired plan) — grey-out on the real dashboard
 
-Same as Pro, with limit 11 (`8/11` style counter) and an **Elite** badge.
-Upgrade button hidden (top tier); Renew still available.
+- Extra tiles render **greyed and unclickable** (no link, `cursor:not-allowed`).
+- "All towns" and any per-town view show **main-town news only**; no story
+  from an extra town's feed appears (feeds flagged "show with all" from
+  extra towns are also excluded while lapsed).
+- Extra towns stay saved in Settings (greyed rows); renewing restores them
+  instantly — no re-seeding, feeds never stopped existing.
+- Adding towns while lapsed is **rejected**: "Subscription lapsed — renew to
+  add extra towns." (Yuriy's decision, 2026-10-16.)
 
-### 2.4 Lapsed (expired or downgraded)
+### 2.3 Settings — "Your towns" card (pro_enabled only)
 
-- **My towns**: main town normal; every extra town row is **greyed out**,
-  non-clickable, with hint `Renew to unlock`. Towns stay saved (nothing is
-  deleted). User may *remove* a greyed town but not add new ones.
-- News line: **main town only**, exactly like Free. No stories from extra
-  towns appear; the town selector shows extras greyed.
-- A slim banner on the news page: `Your Pro expired on 2026-10-12 — renew to
-  unlock Lviv, Dublin.` → links to Subscription.
-- Subscription page: status badge **Expired**, expiry date shown,
-  **Renew** button prominent. Renew → instant restore: all extra towns live
-  again, news back in the line, no re-seeding needed (feeds kept scanning —
-  see open question §7.4).
+Replaces the single "Your town" card:
 
-### 2.5 Upgrade Free → Pro → Elite (Phase 1: admin-granted)
+- Main town pinned at top with 📌 + "Main" badge — cannot be moved or removed.
+- Extra towns as slim rows with **↑ / ↓ reorder arrows** and **Remove**
+  (confirm). Order persists in `user_towns.sort_order` and drives the
+  dashboard tiles, Places groups and feeds groups — single source of truth.
+- "Change main town" keeps today's Nominatim picker (posts to
+  `/settings/location`); the pinned `user_towns` row is reconciled so there
+  is exactly one main town.
+- "Add an extra town": the same Nominatim picker UX (new instance posting
+  to `/settings/towns/add`) — type, pick the correct town name, feeds seed
+  and scan instantly (Yuriy's decisions, 2026-10-16).
+- Removing a town never deletes stories: its feeds revert to untagged
+  (main-town) attribution.
 
-Since Stripe is not built yet, "upgrade"/"renew" in Phase 1 = the admin
-granting via the Admin panel (see §2.6). The user-facing buttons on the
-Subscription page may POST to an endpoint that, in Phase 1, flashes
-"Subscriptions open soon — contact us" **except when the admin is viewing**,
-where the grant form is shown. (Simpler alternative: buttons visible only to
-admin; regular users never see this page at all in Phase 1.)
+### 2.4 Settings — Feeds grouped per town + "show with all"
 
-### 2.6 Admin granting
+- Feeds render grouped under town headers in town order (untagged/legacy
+  feeds group under the main town).
+- Each feed row gets a **"show with all"** checkbox (`feeds.show_all`).
+  A flagged feed's stories appear in **every** town's news line ("pinned
+  for all towns"); unflagged feeds never leak across towns.
 
-New Admin panel section **Pro subscriptions** (`/admin/pro`, `admin_required`):
-- Table of users: username, email, plan badge, expiry date, towns used
-  (`user_towns` count / limit), status (active/lapsed).
-- Row action **Grant / edit**: form with plan select (`free/pro/elite`),
-  expiry date picker (default: +1 year), submit → sets `pro_plan`,
-  `pro_expires_at`, resets `pro_notice_sent_for = 0` (so a fresh reminder
-  cycle starts). Also **Revoke** (set plan `free`, keep towns saved but
-  greyed).
-- Confirmation email to the user on grant (admin BCC), plain text:
+### 2.5 Settings — "Subscription" card (pro_enabled only)
 
-  > Subject: Your TownsLine Pro is active
-  >
-  > Hi {username},
-  >
-  > Your TownsLine Pro subscription is now active until {date}.
-  > You can follow up to 5 extra towns alongside {main town} — add them
-  > in Settings → My towns.
-  >
-  > — TownsLine
+Plan pill + status (Active/Lapsed), expiry date, towns used
+(`3 of 6` on Pro, `8 of 11` on Elite), and the renew note
+("To renew, reply to the renewal email." — Stripe comes later, §5).
 
-### 2.7 News line views (admin user)
+### 2.6 Places
 
-- **Unified** (`All together`): one `<ul class="stories">`, all towns'
-  stories interleaved by publish time, each row carrying a town chip
-  (`.town-chip`) next to the category pill. The existing story row markup is
-  reused; only the chip is added.
-- **Per-town** (`By town`): same data, grouped under slim town headers
-  (`Airdrie — 4 new`, …), each group its own `<ul class="stories">`.
-- Toggle: a segmented control in the dashhead. One click switches; the choice
-  persists. When lapsed, the toggle still works but only the main town has
-  stories.
+- `places.town_slug` tags seeded and user-added places (add form gets a town
+  dropdown for Pro users; suggestions default to the main town).
+- The "Your places" list groups under town headers in town order.
+- Sponsors / featured businesses section unchanged.
+
+### 2.7 Admin granting (unchanged)
+
+`/admin/pro` (`@admin_required`): user table with plan/status/expiry/towns,
+grant form (plan + expiry date), extend, revoke. This stays the
+subscription back-office; the day-to-day town management moved to Settings.
 
 ---
 
@@ -282,32 +298,46 @@ none).
 
 ---
 
-## 6. Admin-only gating & the zero-changes guarantee
+## 6. Gating: `pro_enabled(user)` & the zero-changes guarantee
 
-- Every new route lives under `/admin/pro*` and carries `@admin_required`
-  (non-admins are redirected to the dashboard with the existing flash —
-  same as `/admin/sponsors*`).
-- The admin's Pro news UI (town selector, unified/per-town toggle, My towns
-  card) renders **only when `is_admin`** (the existing context processor).
-  Template conditionals wrap the new blocks; the `{% else %}` branch is the
-  current markup, byte-identical.
-- Nav: a **Pro** link appears in the Admin panel page only — not in the
-  topbar for regular users.
-- **Guarantee:** no existing route handler changes behavior for non-admin
-  users; no existing template changes its output for non-admin users; no
-  migration touches existing column values (backfill only *adds* rows /
-  fills the new `feeds.town_slug` with the user's current town).
-- Verification for the implementation agent: `diff` the rendered dashboard
-  HTML for a non-admin user before/after the change — must be identical
-  (modulo CSRF-ish tokens/nonces).
+One gate controls **every** Pro UI element — dashboard tiles, towns card,
+grouped feeds, subscription card, places grouping:
+
+```python
+def pro_enabled(user):
+    if not user: return False
+    if user["username"] == ADMIN_USERNAME: return True   # admin preview
+    return (user["pro_plan"] or "free") in ("pro", "elite")
+```
+
+- **Today (admin-only preview):** only the admin sees Pro UI. Everyone else
+  gets byte-for-byte today's product.
+- **At public launch nothing needs to change:** any user who ever held
+  Pro/Elite gets the Pro UI automatically. Active subscribers get the full
+  experience; lapsed ones get the greyed-out towns view (§2.2). Users who
+  never subscribed see today's single-town product.
+- New self-service routes (`/settings/towns/*`, `/settings/feeds/*/show_all`)
+  carry `@pro_required` (mirrors the gate; non-Pro users are redirected).
+- **Guarantee:** no existing route handler changes behavior for non-Pro
+  users; no existing template changes its output for non-Pro users (every
+  Pro block is wrapped in `{% if pro_enabled %}`, `{% else %}` keeps the
+  current markup); migrations only add columns / backfill the new ones.
+- Verification: render dashboard/Settings/Places for a non-Pro user
+  before/after — output must be identical.
 
 ---
 
 ## 7. Open questions for Yuriy
 
-**Decided 2026-10-16:** adding towns while lapsed is **rejected** —
-`add_user_town()` returns "Subscription lapsed — renew to add extra towns."
-(Free users: "Extra towns need a Pro subscription.") Renew first, then add.
+**Decided 2026-10-16:**
+- Adding towns while lapsed is **rejected** — `add_user_town()` returns
+  "Subscription lapsed — renew to add extra towns." (Free users: "Extra
+  towns need a Pro subscription.") Renew first, then add.
+- Adding a town triggers an **instant scan** of its feeds (same as signup).
+- Add-town uses the **Nominatim picker** (same UX as Settings).
+- **Integrated, not separate:** Yuriy rejected the `/pro/*` preview pages.
+  Pro lives in the real dashboard (town tiles), Settings (towns card,
+  grouped feeds, subscription card) and Places — all behind `pro_enabled`.
 
 1. **Public prices** — Kickstarter pack lists Pro $4.99/mo or $49/yr,
    Elite $9.99/mo or $99/yr. Are those the public prices too, or

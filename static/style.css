@@ -478,3 +478,14 @@ input:disabled { background: #f1ede5; color: #a39a89; cursor: not-allowed; }
   border: 1px solid var(--line); border-radius: 999px; font-size: .78rem;
   background: var(--accent-soft); color: var(--ink); white-space: nowrap;
 }
+
+/* ---- Pro multi-town dashboard: slim town-tiles row ---- */
+.towntiles { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.towntile {
+  padding: 3px 10px; border-radius: 20px; background: var(--card);
+  border: 1px solid var(--line); color: var(--ink);
+  font-size: 0.8rem; white-space: nowrap;
+}
+a.towntile { text-decoration: none; color: var(--ink); }
+.towntile.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.towntile.greyed { opacity: .45; filter: grayscale(60%); cursor: not-allowed; }

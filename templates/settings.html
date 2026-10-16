@@ -26,6 +26,7 @@
   </form>
 </div>
 
+{% if not pro_enabled %}
 <div class="card">
   <h2>Your town</h2>
   <p>Currently: <strong id="town-current">{{ settings.get('town_name') or 'not set' }}</strong></p>
@@ -37,12 +38,72 @@
   <ul id="locresults" class="locresults"></ul>
   <p class="muted small">Results come from OpenStreetMap Nominatim.</p>
 </div>
+{% endif %}
+
+{% if pro_enabled %}
+<div class="card" id="towns">
+  <h2>Your towns</h2>
+  {% for t in pro_towns %}
+  {% if loop.first %}
+  <p>📌 <strong>{{ t.town_name }}</strong> <span class="pill">Main</span></p>
+  <p class="muted small">Your main town is always first and can't be moved or removed.</p>
+  {% endif %}
+  {% endfor %}
+  {% for t in pro_towns[1:] %}
+  <div class="feed">
+    <div><strong>{{ t.town_name }}</strong></div>
+    <div class="feedactions">
+      {% if not loop.first %}
+      <form method="post" action="{{ url_for('settings_town_move', tid=t.id) }}">
+        <input type="hidden" name="direction" value="up">
+        <button type="submit" class="btn small" title="Move up">↑</button>
+      </form>
+      {% endif %}
+      {% if not loop.last %}
+      <form method="post" action="{{ url_for('settings_town_move', tid=t.id) }}">
+        <input type="hidden" name="direction" value="down">
+        <button type="submit" class="btn small" title="Move down">↓</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{{ url_for('settings_town_remove', tid=t.id) }}"
+            onsubmit="return confirm('Remove this town?')">
+        <button type="submit" class="btn small danger">Remove</button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <p class="muted small">No extra towns yet — add one below.</p>
+  {% endfor %}
+  <button type="button" class="btn" id="scan-near-btn">📍 Scan near me</button>
+  <p class="muted small" id="scan-near-status"></p>
+  <h3 style="margin-top:16px;margin-bottom:4px">Change main town</h3>
+  <label>Search by place name, postal code or ZIP
+    <input id="locq" placeholder="e.g. Airdrie, T4B 0B5, 90210" autocomplete="off">
+  </label>
+  <ul id="locresults" class="locresults"></ul>
+  <h3 style="margin-top:16px;margin-bottom:4px">Add an extra town</h3>
+  <label>Search by place name, postal code or ZIP
+    <input id="extratownq" placeholder="e.g. Cochrane, Banff" autocomplete="off">
+  </label>
+  <ul id="extratownresults" class="locresults"></ul>
+  <p class="muted small">Results come from OpenStreetMap Nominatim.</p>
+</div>
+
+<div class="card">
+  <h2>Subscription</h2>
+  <p><span class="pill">{{ pro_sub.plan }}</span> <span class="muted">{{ pro_sub.status }}</span></p>
+  <p>{% if pro_sub.status == 'active' %}Renews{% else %}Expired{% endif %} {{ pro_sub.expiry_str }}</p>
+  <p>Towns: <strong>{{ pro_sub.extras + 1 }}</strong> of {{ pro_sub.max_towns }} <span class="muted">(main + {{ pro_sub.extras }} of {{ pro_sub.max_extras }} extra)</span></p>
+  <p class="muted small">To renew, reply to the renewal email.</p>
+</div>
+{% endif %}
 
 <div class="card" id="feeds">
   <h2>Feeds</h2>
   <form class="inline-form" method="post" action="{{ url_for('scan_now') }}">
     <button type="submit">Scan now</button>
   </form>
+  {% if not pro_enabled %}
   <ul class="feedlist">
   {% for f in feeds %}
     <li class="feed">
@@ -68,6 +129,41 @@
     <li class="muted">No feeds yet.</li>
   {% endfor %}
   </ul>
+  {% endif %}
+
+  {% if pro_enabled %}
+  {% for g in pro_feed_groups %}
+  <h3 style="margin-bottom:4px">{% if g.is_main %}📌 {% endif %}{{ g.town_name }}</h3>
+  <ul class="feedlist">
+  {% for f in g.feeds %}
+    <li class="feed">
+      <div>
+        <strong>{{ f['name'] }}</strong>
+        <div class="muted small">{{ f['url'] }}</div>
+        <div class="muted small">
+          {{ f['last_count'] }} stories · {{ f['sync_info'] }} · {{ f['thinking'] }}
+          {% if f['last_error'] %}<span class="error">· Error: {{ f['last_error'] }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="feedactions">
+        <form method="post" action="{{ url_for('feed_toggle', fid=f['id']) }}">
+          <button type="submit" class="btn small">{{ 'Disable' if f['enabled'] else 'Enable' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('feed_delete', fid=f['id']) }}"
+              onsubmit="return confirm('Remove this feed?')">
+          <button type="submit" class="btn small danger">Remove</button>
+        </form>
+        <form method="post" action="{{ url_for('feed_show_all', fid=f['id']) }}">
+          <label class="muted small"><input type="checkbox" name="show_all" value="1"{% if f['show_all'] %} checked{% endif %} onchange="this.form.submit()"> show with all</label>
+        </form>
+      </div>
+    </li>
+  {% else %}
+    <li class="muted">No feeds yet.</li>
+  {% endfor %}
+  </ul>
+  {% endfor %}
+  {% endif %}
 
   <h2>Add a feed</h2>
   <form method="post" action="{{ url_for('feed_add') }}">
@@ -126,7 +222,8 @@ document.getElementById('scan-near-btn').addEventListener('click', () => {
       });
       const data = await r.json();
       if (data.ok) {
-        document.getElementById('town-current').textContent = data.town;
+        const tc = document.getElementById('town-current');
+        if (tc) tc.textContent = data.town;
         status.classList.add('busy');
         status.textContent = 'Found you in ' + data.town + ' — loading feed suggestions…';
         loadSuggestions();
@@ -145,40 +242,80 @@ document.getElementById('scan-near-btn').addEventListener('click', () => {
 });
 
 const q = document.getElementById('locq');
-const box = document.getElementById('locresults');
-let timer = null;
-q.addEventListener('input', () => {
-  clearTimeout(timer);
-  timer = setTimeout(async () => {
-    const v = q.value.trim();
-    if (v.length < 2) { box.innerHTML = ''; return; }
-    const r = await fetch('/api/geocode?q=' + encodeURIComponent(v));
-    const items = await r.json();
-    box.innerHTML = '';
-    if (!Array.isArray(items)) return;
-    for (const it of items) {
-      const li = document.createElement('li');
-      const form = document.createElement('form');
-      form.method = 'post';
-      form.action = '/settings/location';
-      const fields = {
-        display_name: it.display_name, city: it.city || '',
-        lat: it.lat, lon: it.lon,
-        state: it.state || '', country_code: it.country_code || ''
-      };
-      for (const [k, val] of Object.entries(fields)) {
-        const h = document.createElement('input');
-        h.type = 'hidden'; h.name = k; h.value = val;
-        form.appendChild(h);
+if (q) {
+  const box = document.getElementById('locresults');
+  let timer = null;
+  q.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const v = q.value.trim();
+      if (v.length < 2) { box.innerHTML = ''; return; }
+      const r = await fetch('/api/geocode?q=' + encodeURIComponent(v));
+      const items = await r.json();
+      box.innerHTML = '';
+      if (!Array.isArray(items)) return;
+      for (const it of items) {
+        const li = document.createElement('li');
+        const form = document.createElement('form');
+        form.method = 'post';
+        form.action = '/settings/location';
+        const fields = {
+          display_name: it.display_name, city: it.city || '',
+          lat: it.lat, lon: it.lon,
+          state: it.state || '', country_code: it.country_code || ''
+        };
+        for (const [k, val] of Object.entries(fields)) {
+          const h = document.createElement('input');
+          h.type = 'hidden'; h.name = k; h.value = val;
+          form.appendChild(h);
+        }
+        const b = document.createElement('button');
+        b.type = 'submit'; b.className = 'linklike';
+        b.textContent = it.display_name;
+        form.appendChild(b);
+        li.appendChild(form);
+        box.appendChild(li);
       }
-      const b = document.createElement('button');
-      b.type = 'submit'; b.className = 'linklike';
-      b.textContent = it.display_name;
-      form.appendChild(b);
-      li.appendChild(form);
-      box.appendChild(li);
-    }
-  }, 350);
-});
+    }, 350);
+  });
+}
+
+const xq = document.getElementById('extratownq');
+if (xq) {
+  const xbox = document.getElementById('extratownresults');
+  let xtimer = null;
+  xq.addEventListener('input', () => {
+    clearTimeout(xtimer);
+    xtimer = setTimeout(async () => {
+      const v = xq.value.trim();
+      if (v.length < 2) { xbox.innerHTML = ''; return; }
+      const r = await fetch('/api/geocode?q=' + encodeURIComponent(v));
+      const items = await r.json();
+      xbox.innerHTML = '';
+      if (!Array.isArray(items)) return;
+      for (const it of items) {
+        const li = document.createElement('li');
+        const form = document.createElement('form');
+        form.method = 'post';
+        form.action = '{{ url_for("settings_town_add") }}';
+        const fields = {
+          town_name: it.city || it.display_name.split(',')[0],
+          lat: it.lat, lon: it.lon
+        };
+        for (const [k, val] of Object.entries(fields)) {
+          const h = document.createElement('input');
+          h.type = 'hidden'; h.name = k; h.value = val;
+          form.appendChild(h);
+        }
+        const b = document.createElement('button');
+        b.type = 'submit'; b.className = 'linklike';
+        b.textContent = it.display_name;
+        form.appendChild(b);
+        li.appendChild(form);
+        xbox.appendChild(li);
+      }
+    }, 350);
+  });
+}
 </script>
 {% endblock %}

@@ -3723,6 +3723,23 @@ def api_suggestions():
     db = get_db()
     settings = get_settings(user["id"])
     town = settings.get("town_name", "")
+    state = settings.get("state", "")
+    country_code = settings.get("country_code", "")
+    if pro_enabled(user):
+        # Pro: suggestions follow the selected town tile, not the main
+        # town (the tile click persists pro_town_filter, shared with
+        # the dashboard and feeds card).
+        filt = (settings.get("pro_town_filter") or "all")
+        if filt != "all":
+            trow = next((t for t in get_user_towns(user["id"])
+                         if t["town_slug"] == filt), None)
+            if trow:
+                town = trow["town_name"]
+                entry = find_town_entry(trow["town_name"], trow.get("lat"),
+                                        trow.get("lon"))
+                state = (entry.get("region") if entry else "") or ""
+                country_code = (entry.get("country_code") if entry
+                                else "") or ""
     have = {norm_url(r["url"]) for r in
             db.execute("SELECT url FROM feeds WHERE user_id = ?",
                        (user["id"],)).fetchall()}
@@ -3774,10 +3791,20 @@ def feed_add():
         if norm_url(url) in have:
             duplicate = True
         else:
+            # Pro: a feed added while a town tile is selected is tagged
+            # with that town (validated against the user's own towns).
+            tslug = (request.form.get("town_slug") or "").strip()
+            if tslug and pro_enabled(current_user()):
+                slugs = {t["town_slug"]
+                         for t in get_user_towns(session["user_id"])}
+                if tslug not in slugs:
+                    tslug = ""
+            else:
+                tslug = ""
             db.execute(
-                "INSERT INTO feeds (user_id, name, url, enabled) "
-                "VALUES (?,?,?,1)",
-                (session["user_id"], name, url),
+                "INSERT INTO feeds (user_id, name, url, enabled, town_slug) "
+                "VALUES (?,?,?,1,?)",
+                (session["user_id"], name, url, tslug or None),
             )
             db.commit()
             added = True

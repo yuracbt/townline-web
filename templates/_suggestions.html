@@ -3,6 +3,10 @@
 <ul class="feedlist" id="suggest-list"></ul>
 
 <script>
+// Town currently selected in the Feeds card tiles ("all" when the
+// grouped view is shown) — suggested feeds are computed for this town
+// and added feeds are tagged with it.
+const suggestTownSlug = {{ (pro_feed_filter if pro_enabled else 'all')|tojson }};
 async function loadSuggestions() {
   const box = document.getElementById('suggest-list');
   const status = document.getElementById('suggest-status');
@@ -54,6 +58,9 @@ async function loadSuggestions() {
         const fd = new FormData();
         fd.append('name', f.name);
         fd.append('url', f.url);
+        if (suggestTownSlug && suggestTownSlug !== 'all') {
+          fd.append('town_slug', suggestTownSlug);
+        }
         const resp = await fetch('{{ url_for("feed_add") }}', {
           method: 'POST',
           body: fd,

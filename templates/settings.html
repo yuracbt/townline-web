@@ -190,6 +190,10 @@
   <form method="post" action="{{ url_for('feed_add') }}">
     <label>Name <input name="name" placeholder="e.g. Airdrie Library"></label>
     <label>Feed URL <input name="url" type="url" placeholder="https://…/feed" required></label>
+    {% if pro_enabled and pro_feed_filter != 'all' %}
+    <input type="hidden" name="town_slug" value="{{ pro_feed_filter }}">
+    <p class="muted small">Will be added to {{ pro_feed_filter_name }}.</p>
+    {% endif %}
     <button type="submit">Add feed</button>
   </form>
 

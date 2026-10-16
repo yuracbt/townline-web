@@ -675,11 +675,11 @@ def get_user_towns(user_id):
 
 
 def add_user_town(user_id, town_name, lat=None, lon=None):
-    """Add an extra town to a user's list. Enforces the plan's slot
-    limit (free users get 0 extras; lapsed plans count as their plan's
-    limit but the news views only show extra towns while active).
-    Seeds the town's feeds via seed_default_feeds(), tagging the new
-    feed rows with town_slug so stories attribute to the right town.
+    """Add an extra town to a user's list. Rejected unless the
+    subscription is active (Yuriy's call 2026-10-16: no town adds while
+    lapsed — renew first). Enforces the plan's slot limit. Seeds the
+    town's feeds via seed_default_feeds(), tagging the new feed rows
+    with town_slug so stories attribute to the right town.
     Returns (ok, message)."""
     db = get_db()
     town_name = (town_name or "").strip()
@@ -687,7 +687,11 @@ def add_user_town(user_id, town_name, lat=None, lon=None):
         return False, "Town name is required."
     user = db.execute("SELECT * FROM users WHERE id = ?",
                       (user_id,)).fetchone()
-    _, plan, _ = pro_status(user)
+    status, plan, _ = pro_status(user)
+    if status != "active":
+        if plan == "free":
+            return False, "Extra towns need a Pro subscription."
+        return False, "Subscription lapsed — renew to add extra towns."
     limit = pro_extra_limit(plan)
     towns = get_user_towns(user_id)
     slug = town_slug_for(town_name)

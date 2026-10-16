@@ -305,6 +305,10 @@ none).
 
 ## 7. Open questions for Yuriy
 
+**Decided 2026-10-16:** adding towns while lapsed is **rejected** —
+`add_user_town()` returns "Subscription lapsed — renew to add extra towns."
+(Free users: "Extra towns need a Pro subscription.") Renew first, then add.
+
 1. **Public prices** — Kickstarter pack lists Pro $4.99/mo or $49/yr,
    Elite $9.99/mo or $99/yr. Are those the public prices too, or
    Kickstarter-only? (Prototype shows "TBD".)

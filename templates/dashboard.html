@@ -52,7 +52,7 @@
 {% if not stories %}
 <p class="muted empty">
   {% if unread_only %}No unread stories here — you're all caught up.
-  {% else %}No stories here yet. Add feeds on the <a href="{{ url_for('feeds_page') }}">Feeds</a> page, or wait for the next scan.
+  {% else %}No stories here yet. Add feeds in <a href="{{ url_for('settings_page') }}#feeds">Settings → Feeds</a>, or wait for the next scan.
   {% endif %}
 </p>
 {% endif %}

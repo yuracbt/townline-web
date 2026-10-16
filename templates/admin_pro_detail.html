@@ -68,10 +68,51 @@
   {% else %}
   <p class="muted">No town set yet.</p>
   {% endif %}
-  <form method="post" action="{{ url_for('admin_pro_town_add', uid=target['id']) }}" class="remove-form" style="margin-top:12px">
-    <label>Add town <input name="town_name" placeholder="e.g. Calgary" required></label>
-    <button type="submit">Add</button>
-  </form>
+  <div style="margin-top:12px">
+    <label>Search by place name, postal code or ZIP
+      <input id="protownq" placeholder="e.g. Calgary" autocomplete="off">
+    </label>
+    <ul id="protownresults" class="locresults"></ul>
+    <p class="muted small">Results come from OpenStreetMap Nominatim. Pick a town to add it with the correct name.</p>
+  </div>
   <p class="muted small">Adding a town seeds its feeds and tags them, so stories attribute to the right town.</p>
 </div>
+<script>
+const pq = document.getElementById('protownq');
+const pbox = document.getElementById('protownresults');
+const proAddUrl = {{ url_for('admin_pro_town_add', uid=target['id'])|tojson }};
+let ptimer = null;
+pq.addEventListener('input', () => {
+  clearTimeout(ptimer);
+  ptimer = setTimeout(async () => {
+    const v = pq.value.trim();
+    if (v.length < 2) { pbox.innerHTML = ''; return; }
+    const r = await fetch('/api/geocode?q=' + encodeURIComponent(v));
+    const items = await r.json();
+    pbox.innerHTML = '';
+    if (!Array.isArray(items)) return;
+    for (const it of items) {
+      const li = document.createElement('li');
+      const form = document.createElement('form');
+      form.method = 'post';
+      form.action = proAddUrl;
+      // Same name rule as Settings: prefer the real place name
+      // ("Calgary") over a bare postal code.
+      const town = (it.city || it.display_name.split(',')[0] || '').trim();
+      const fields = { town_name: town, lat: it.lat || '', lon: it.lon || '' };
+      for (const [k, val] of Object.entries(fields)) {
+        const h = document.createElement('input');
+        h.type = 'hidden'; h.name = k; h.value = val;
+        form.appendChild(h);
+      }
+      const b = document.createElement('button');
+      b.type = 'submit'; b.className = 'linklike';
+      b.textContent = it.display_name;
+      form.appendChild(b);
+      li.appendChild(form);
+      pbox.appendChild(li);
+    }
+  }, 350);
+});
+</script>
 {% endblock %}

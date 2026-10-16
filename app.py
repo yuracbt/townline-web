@@ -3017,6 +3017,13 @@ def admin_pro_revoke(uid):
     return redirect(url_for("admin_pro_detail", uid=uid))
 
 
+def _opt_float(v):
+    try:
+        return float(v) if v not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
 @app.route("/admin/pro/<int:uid>/towns/add", methods=["POST"])
 @login_required
 @admin_required
@@ -3026,7 +3033,9 @@ def admin_pro_town_add(uid):
                             (uid,)).fetchone():
         flash("User not found.")
         return redirect(url_for("admin_pro"))
-    ok, msg = add_user_town(uid, request.form.get("town_name", ""))
+    ok, msg = add_user_town(uid, request.form.get("town_name", ""),
+                            lat=_opt_float(request.form.get("lat")),
+                            lon=_opt_float(request.form.get("lon")))
     if ok:
         # Same "instant scan" the signup flow does: a new town with
         # "No stories" looks broken, so scan its feeds right away.

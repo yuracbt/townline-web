@@ -76,21 +76,47 @@
     <p class="muted small">Results come from OpenStreetMap Nominatim. Pick a town to add it with the correct name.</p>
   </div>
   <p class="muted small">Adding a town seeds its feeds and tags them, so stories attribute to the right town.</p>
-  {% if untagged_feeds or untagged_places %}
-  <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border)">
-    <p class="muted small"><strong>{{ untagged_feeds }}</strong> untagged feed(s), <strong>{{ untagged_places }}</strong> untagged place(s) — these follow the main town. Assign them to the right town:</p>
-    <form method="post" action="{{ url_for('admin_pro_reassign_untagged', uid=target['id']) }}" class="remove-form">
-      <label>Town
-        <select name="town_slug">
-          {% for t in towns %}
-          <option value="{{ t['town_slug'] }}"{% if t['is_main'] %} selected{% endif %}>{{ t['town_name'] }}{% if t['is_main'] %} (main){% endif %}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <button type="submit">Assign untagged</button>
-    </form>
-  </div>
-  {% endif %}
+</div>
+<div class="card">
+  <h2>Feed &amp; place attribution</h2>
+  <p class="muted small">Which town each feed and place belongs to. “Main (untagged)” follows the main town. Change any that landed under the wrong town, then save.</p>
+  <form method="post" action="{{ url_for('admin_pro_reassign_items', uid=target['id']) }}">
+    <h3>Feeds</h3>
+    <table class="admintable">
+      <thead><tr><th>Feed</th><th>Town</th></tr></thead>
+      <tbody>
+        {% for f in item_feeds %}
+        <tr>
+          <td><strong>{{ f['name'] }}</strong><br><span class="muted small">{{ f['url'] }}</span></td>
+          <td><select name="feed_{{ f['id'] }}">
+            <option value=""{% if not f['town_slug'] %} selected{% endif %}>Main (untagged)</option>
+            {% for t in towns %}
+            <option value="{{ t['town_slug'] }}"{% if f['town_slug'] == t['town_slug'] %} selected{% endif %}>{{ t['town_name'] }}{% if t['is_main'] %} (main){% endif %}</option>
+            {% endfor %}
+          </select></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <h3>Places</h3>
+    <table class="admintable">
+      <thead><tr><th>Place</th><th>Town</th></tr></thead>
+      <tbody>
+        {% for p in item_places %}
+        <tr>
+          <td><strong>{{ p['name'] }}</strong><br><span class="muted small">{{ p['url'] }}</span></td>
+          <td><select name="place_{{ p['id'] }}">
+            <option value=""{% if not p['town_slug'] %} selected{% endif %}>Main (untagged)</option>
+            {% for t in towns %}
+            <option value="{{ t['town_slug'] }}"{% if p['town_slug'] == t['town_slug'] %} selected{% endif %}>{{ t['town_name'] }}{% if t['is_main'] %} (main){% endif %}</option>
+            {% endfor %}
+          </select></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="submit">Save attribution</button>
+  </form>
 </div>
 <script>
 const pq = document.getElementById('protownq');

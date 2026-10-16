@@ -3059,21 +3059,24 @@ def admin_pro_detail(uid):
         t["story_count"] = counts.get(t["town_slug"], 0)
         t["greyed"] = bool(not t["is_main"] and status != "active")
     extras = len([t for t in towns if not t["is_main"]])
-    # Untagged legacy items (feeds/places added before per-town tagging)
-    # for a one-time reassignment after a main-town switch.
-    untagged_feeds = db.execute(
-        "SELECT COUNT(*) c FROM feeds WHERE user_id = ? "
-        "AND COALESCE(town_slug, '') = ''", (uid,)).fetchone()["c"]
-    untagged_places = db.execute(
-        "SELECT COUNT(*) c FROM places WHERE user_id = ? "
-        "AND COALESCE(town_slug, '') = ''", (uid,)).fetchone()["c"]
+    # Item-level attribution editor: every feed/place with its current
+    # town tag ('' = untagged/main) so mis-tagged legacy items can be
+    # fixed precisely after a main-town switch.
+    item_feeds = [
+        dict(r) for r in db.execute(
+            "SELECT id, name, url, COALESCE(town_slug, '') AS town_slug "
+            "FROM feeds WHERE user_id = ? ORDER BY name", (uid,))]
+    item_places = [
+        dict(r) for r in db.execute(
+            "SELECT id, name, url, COALESCE(town_slug, '') AS town_slug "
+            "FROM places WHERE user_id = ? ORDER BY name", (uid,))]
     return render_template(
         "admin_pro_detail.html", user=current_user(), target=d,
         status=status, plan=plan, expires_at=expires_at,
         expiry_str=pro_expiry_str(expires_at), towns=towns,
         extras=extras, max_towns=1 + pro_extra_limit(plan),
         admin_username=ADMIN_USERNAME,
-        untagged_feeds=untagged_feeds, untagged_places=untagged_places)
+        item_feeds=item_feeds, item_places=item_places)
 
 
 @app.route("/admin/pro/<int:uid>/grant", methods=["POST"])
@@ -3205,32 +3208,36 @@ def admin_pro_town_remove(uid, tid):
     return redirect(url_for("admin_pro_detail", uid=uid))
 
 
-@app.route("/admin/pro/<int:uid>/reassign_untagged", methods=["POST"])
+@app.route("/admin/pro/<int:uid>/reassign", methods=["POST"])
 @login_required
 @admin_required
-def admin_pro_reassign_untagged(uid):
-    """One-time repair: tag a user's untagged feeds/places with the
-    chosen town (e.g. after a main-town switch moved legacy items)."""
+def admin_pro_reassign_items(uid):
+    """Item-level attribution fix: change any feed/place's town tag.
+    Accepts '' (untagged = follows the main town) or one of the user's
+    town slugs. Invalid values are ignored."""
     db = get_db()
     if not db.execute("SELECT 1 FROM users WHERE id = ?",
                       (uid,)).fetchone():
         flash("User not found.")
         return redirect(url_for("admin_pro"))
-    slug = (request.form.get("town_slug") or "").strip()
     slugs = {t["town_slug"] for t in get_user_towns(uid)}
-    if slug not in slugs:
-        flash("Pick one of the user's towns.")
-        return redirect(url_for("admin_pro_detail", uid=uid))
-    f = db.execute("UPDATE feeds SET town_slug = ? WHERE user_id = ? "
-                   "AND COALESCE(town_slug, '') = ''",
-                   (slug, uid)).rowcount
-    p = db.execute("UPDATE places SET town_slug = ? WHERE user_id = ? "
-                   "AND COALESCE(town_slug, '') = ''",
-                   (slug, uid)).rowcount
+    changed = 0
+    for table, prefix in (("feeds", "feed_"), ("places", "place_")):
+        ids = [r["id"] for r in db.execute(
+            f"SELECT id FROM {table} WHERE user_id = ?", (uid,))]
+        for i in ids:
+            key = f"{prefix}{i}"
+            if key not in request.form:
+                continue
+            v = (request.form.get(key) or "").strip()
+            if v != "" and v not in slugs:
+                continue
+            changed += db.execute(
+                f"UPDATE {table} SET town_slug = ? "
+                "WHERE id = ? AND user_id = ?",
+                (v, i, uid)).rowcount
     db.commit()
-    name = next((t["town_name"] for t in get_user_towns(uid)
-                 if t["town_slug"] == slug), slug)
-    flash(f"Assigned {f} feed(s) and {p} place(s) to {name}.")
+    flash(f"Updated {changed} item(s).")
     return redirect(url_for("admin_pro_detail", uid=uid))
 
 

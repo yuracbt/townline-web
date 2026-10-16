@@ -331,6 +331,15 @@ def add_months(d, months):
 
 
 NEWS_MONTHLY_LIMIT = 10  # news items a sponsor may post per billing period
+# Fixed reasons an admin can pick when removing a sponsor news item.
+REMOVAL_REASONS = [
+    "Breaks the listing rules",
+    "Offensive content",
+    "Not appropriate for a family audience",
+    "Spam or misleading",
+    "Expired or incorrect information",
+    "Other",
+]
 
 
 def news_used_this_period(sponsor_id):
@@ -404,7 +413,7 @@ def sponsor_news_stories_for_user(settings):
     for s in get_sponsors_for_user(settings):
         for n in db.execute(
                 "SELECT * FROM sponsor_news WHERE sponsor_id = ? "
-                "AND is_active = 1 ORDER BY created_at DESC",
+                "AND is_active = 1 AND status = 'active' ORDER BY created_at DESC",
                 (s["id"],)).fetchall():
             expires = (n["expires"] or "").strip()
             if expires and expires < today:
@@ -529,6 +538,23 @@ def send_sponsor_news_added(sponsor, news):
     )
     return send_email(sponsor["email"],
                       f"Your TownsLine news is live: {news['title']}",
+                      body, bcc=ADMIN_EMAIL)
+
+
+def send_sponsor_news_removed(sponsor, news, reason):
+    """Moderation notice: a news item was removed by the admin, with the
+    recorded reason. Admin in BCC."""
+    body = (
+        f"Hi {sponsor['name']},\n\n"
+        f"One of your TownsLine news items was removed by our team:\n\n"
+        f"Headline: {news['title']}\n"
+        f"Reason: {reason}.\n\n"
+        f"It no longer shows on TownsLine. If you think this was a "
+        f"mistake, just reply to this email and we'll take another look.\n\n"
+        f"— TownsLine"
+    )
+    return send_email(sponsor["email"],
+                      f"Your TownsLine news was removed: {news['title']}",
                       body, bcc=ADMIN_EMAIL)
 
 
@@ -795,6 +821,18 @@ def init_db():
                      promo.get("text", ""), promo.get("url", ""),
                      promo.get("expires", ""), int(time.time())),
                 )
+    # Moderation: an admin can remove a news item with a recorded reason
+    # (soft-remove; the sponsor sees what was removed and why, and the
+    # admin can restore it).
+    for ddl in (
+        "ALTER TABLE sponsor_news ADD COLUMN status TEXT DEFAULT 'active'",
+        "ALTER TABLE sponsor_news ADD COLUMN removal_reason TEXT DEFAULT ''",
+        "ALTER TABLE sponsor_news ADD COLUMN removed_at INTEGER DEFAULT 0",
+    ):
+        try:
+            db.execute(ddl)
+        except sqlite3.OperationalError:
+            pass  # column already there
     # Sponsor billing: payment period in months, start of the current
     # news-quota period (unix), and the last date marked paid.
     for ddl in (
@@ -2079,6 +2117,7 @@ def admin_sponsor_detail(sid):
                            portal_url=portal_url,
                            news_used=news_used_this_period(sid),
                            news_limit=NEWS_MONTHLY_LIMIT,
+                           removal_reasons=REMOVAL_REASONS,
                            user=current_user())
 
 
@@ -2499,18 +2538,49 @@ def admin_sponsor_news_toggle(nid):
     return redirect(url_for("admin_sponsors"))
 
 
-@app.route("/admin/sponsors/news/<int:nid>/delete", methods=["POST"])
+@app.route("/admin/sponsors/news/<int:nid>/remove", methods=["POST"])
 @login_required
 @admin_required
-def admin_sponsor_news_delete(nid):
-    """Delete one news item."""
+def admin_sponsor_news_remove(nid):
+    """Moderated removal: hides the item everywhere, records why, and
+    emails the sponsor with the reason (admin BCC'd). The item can be
+    restored; the sponsor sees what was removed and why in their portal."""
+    db = get_db()
+    row = db.execute("SELECT * FROM sponsor_news WHERE id = ?",
+                     (nid,)).fetchone()
+    if not row:
+        return redirect(url_for("admin_sponsors"))
+    reason = request.form.get("reason", "Other").strip()
+    if reason not in REMOVAL_REASONS:
+        reason = "Other"
+    note = request.form.get("reason_note", "").strip()
+    full_reason = reason + (f" — {note}" if note else "")
+    db.execute("UPDATE sponsor_news SET status = 'removed', is_active = 0, "
+               "removal_reason = ?, removed_at = ? WHERE id = ?",
+               (full_reason, int(time.time()), nid))
+    db.commit()
+    sponsor = db.execute("SELECT * FROM sponsors WHERE id = ?",
+                         (row["sponsor_id"],)).fetchone()
+    if sponsor and sponsor["email"]:
+        send_sponsor_news_removed(sponsor, row, full_reason)
+    flash(f"Removed news: {row['title']} ({full_reason}).")
+    return redirect(url_for("admin_sponsor_detail",
+                            sid=row["sponsor_id"]))
+
+
+@app.route("/admin/sponsors/news/<int:nid>/restore", methods=["POST"])
+@login_required
+@admin_required
+def admin_sponsor_news_restore(nid):
+    """Undo a moderated removal."""
     db = get_db()
     row = db.execute("SELECT * FROM sponsor_news WHERE id = ?",
                      (nid,)).fetchone()
     if row:
-        db.execute("DELETE FROM sponsor_news WHERE id = ?", (nid,))
+        db.execute("UPDATE sponsor_news SET status = 'active', is_active = 1, "
+                   "removal_reason = '', removed_at = 0 WHERE id = ?", (nid,))
         db.commit()
-        flash("Deleted news: " + row["title"] + ".")
+        flash(f"Restored news: {row['title']}.")
         return redirect(url_for("admin_sponsor_detail",
                                 sid=row["sponsor_id"]))
     return redirect(url_for("admin_sponsors"))

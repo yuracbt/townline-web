@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Pro — {{ target['username'] }} — TownsLine{% endblock %}
+{% block content %}
+<h1>Pro — {{ target['username'] }}</h1>
+<nav class="admin-nav"><a href="{{ url_for('admin_panel') }}">Administration</a> · <a href="{{ url_for('admin_pro') }}">Pro</a> · <strong>{{ target['username'] }}</strong></nav>
+
+<div class="card pro-card">
+  <h2>Subscription</h2>
+  <p><span class="pill">{{ plan|capitalize }}</span>
+     {% if status == 'active' %}<span class="status-pill ok">Active</span>{% else %}<span class="status-pill bad">Lapsed</span>{% endif %}</p>
+  <p>Expires: <strong>{{ expiry_str }}</strong></p>
+  <p>Towns used: <strong>{{ extras + 1 if towns else extras }}/{{ max_towns }}</strong>
+     <span class="muted small">(main + {{ extras }} extra)</span></p>
+</div>
+
+<div class="card">
+  <h2>Grant / extend / revoke</h2>
+  <form method="post" action="{{ url_for('admin_pro_grant', uid=target['id']) }}" class="remove-form">
+    <label>Plan
+      <select name="plan">
+        <option value="free">Free</option>
+        <option value="pro" {% if plan == 'pro' %}selected{% endif %}>Pro (main + 5 towns)</option>
+        <option value="elite" {% if plan == 'elite' %}selected{% endif %}>Elite (main + 10 towns)</option>
+      </select>
+    </label>
+    <label>Expires <input type="date" name="expires"></label>
+    <button type="submit">Grant</button>
+  </form>
+  <form method="post" action="{{ url_for('admin_pro_extend', uid=target['id']) }}" class="remove-form" style="margin-top:8px">
+    <label>Extend
+      <select name="months">
+        <option value="1">1 month</option>
+        <option value="3">3 months</option>
+        <option value="6">6 months</option>
+        <option value="12">12 months</option>
+      </select>
+    </label>
+    <button type="submit">Renew / extend</button>
+  </form>
+  <form method="post" action="{{ url_for('admin_pro_revoke', uid=target['id']) }}" style="margin-top:8px"
+        onsubmit="return confirm('Revoke {{ target['username'] }} to Free? Towns stay saved, extra towns grey out.')">
+    <button type="submit" class="linklike danger">Revoke to Free</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Towns</h2>
+  {% if towns %}
+  <table class="admintable">
+    <thead><tr><th>Town</th><th>Stories</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for t in towns %}
+      <tr{% if t['greyed'] %} class="town-greyed"{% endif %}>
+        <td><strong>{{ t['town_name'] }}</strong>{% if t['is_main'] %} <span class="pill">Main</span>{% endif %}{% if t['greyed'] %} <span class="muted small">(greyed — lapsed)</span>{% endif %}</td>
+        <td>{{ t['story_count'] }}</td>
+        <td>
+          {% if not t['is_main'] %}
+          <form method="post" action="{{ url_for('admin_pro_town_remove', uid=target['id'], tid=t['id']) }}" style="display:inline"
+                onsubmit="return confirm('Remove {{ t['town_name'] }} from {{ target['username'] }}?')">
+            <button type="submit" class="linklike danger">Remove</button>
+          </form>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No town set yet.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('admin_pro_town_add', uid=target['id']) }}" class="remove-form" style="margin-top:12px">
+    <label>Add town <input name="town_name" placeholder="e.g. Calgary" required></label>
+    <button type="submit">Add</button>
+  </form>
+  <p class="muted small">Adding a town seeds its feeds and tags them, so stories attribute to the right town.</p>
+</div>
+{% endblock %}

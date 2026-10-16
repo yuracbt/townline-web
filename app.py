@@ -603,6 +603,238 @@ def flag_overdue_sponsors(sponsors):
     return sponsors
 
 
+# ---------------------------------------------------------------- Pro multi-town subscriptions
+
+PRO_EXTRA_LIMITS = {"pro": 5, "elite": 10}
+
+
+def pro_extra_limit(plan):
+    """Extra towns a paid plan allows (pro: 5, elite: 10, free: 0)."""
+    return PRO_EXTRA_LIMITS.get(plan or "free", 0)
+
+
+def pro_status(user):
+    """Subscription status for a user row/dict.
+
+    Returns ('active'|'lapsed', plan, expires_at). 'active' needs
+    pro_plan in ('pro','elite') AND pro_expires_at in the future.
+    Computed from the DB on every call, so expiry greys out extra
+    towns instantly and a renew restores them — no cron needed for
+    enforcement.
+    """
+    plan = (user["pro_plan"] or "free") if user else "free"
+    expires_at = int(user["pro_expires_at"] or 0) if user else 0
+    active = plan in ("pro", "elite") and expires_at > int(time.time())
+    return ("active" if active else "lapsed"), plan, expires_at
+
+
+def pro_expiry_str(expires_at):
+    if not expires_at:
+        return "—"
+    return datetime.fromtimestamp(
+        expires_at, tz=timezone.utc).strftime("%Y-%m-%d")
+
+
+def ensure_main_town(user_id):
+    """Make sure user_towns has a main-town row matching the user's
+    settings.town_name (their 'main' town). Returns the row dict or
+    None when no town is set yet."""
+    db = get_db()
+    row = db.execute(
+        "SELECT * FROM user_towns WHERE user_id = ? AND is_main = 1",
+        (user_id,)).fetchone()
+    if row:
+        return dict(row)
+    s = get_settings(user_id)
+    town_name = (s.get("town_name") or "").strip()
+    if not town_name:
+        return None
+    try:
+        db.execute(
+            "INSERT INTO user_towns (user_id, town_name, town_slug, lat, "
+            "lon, is_main, created_at) VALUES (?,?,?,?,?,1,?)",
+            (user_id, town_name, town_slug_for(town_name),
+             s.get("lat"), s.get("lon"), int(time.time())))
+        db.commit()
+    except sqlite3.IntegrityError:
+        pass  # raced insert; fall through to the re-read
+    row = db.execute(
+        "SELECT * FROM user_towns WHERE user_id = ? AND is_main = 1",
+        (user_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def get_user_towns(user_id):
+    """User's town list, main town first. Ensures the main row exists."""
+    ensure_main_town(user_id)
+    db = get_db()
+    rows = db.execute(
+        "SELECT * FROM user_towns WHERE user_id = ? "
+        "ORDER BY is_main DESC, town_name", (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_user_town(user_id, town_name, lat=None, lon=None):
+    """Add an extra town to a user's list. Enforces the plan's slot
+    limit (free users get 0 extras; lapsed plans count as their plan's
+    limit but the news views only show extra towns while active).
+    Seeds the town's feeds via seed_default_feeds(), tagging the new
+    feed rows with town_slug so stories attribute to the right town.
+    Returns (ok, message)."""
+    db = get_db()
+    town_name = (town_name or "").strip()
+    if not town_name:
+        return False, "Town name is required."
+    user = db.execute("SELECT * FROM users WHERE id = ?",
+                      (user_id,)).fetchone()
+    _, plan, _ = pro_status(user)
+    limit = pro_extra_limit(plan)
+    towns = get_user_towns(user_id)
+    slug = town_slug_for(town_name)
+    if any(t["town_slug"] == slug for t in towns):
+        return False, f"{town_name} is already in the town list."
+    extras = [t for t in towns if not t["is_main"]]
+    if len(extras) >= limit:
+        return False, (f"Plan limit reached: {limit} extra towns "
+                       f"on the {plan.capitalize()} plan.")
+    before = {r["id"] for r in db.execute(
+        "SELECT id FROM feeds WHERE user_id = ?", (user_id,))}
+    try:
+        db.execute(
+            "INSERT INTO user_towns (user_id, town_name, town_slug, lat, "
+            "lon, is_main, created_at) VALUES (?,?,?,?,?,0,?)",
+            (user_id, town_name, slug, lat, lon, int(time.time())))
+    except sqlite3.IntegrityError:
+        return False, f"{town_name} is already in the town list."
+    # Seed feeds for the new town, tagging the fresh feed rows so the
+    # Pro news views can attribute stories to this town. Feeds that
+    # already existed (URL dedup) keep their previous attribution.
+    seed_default_feeds(user_id, town_name, lat=lat, lon=lon)
+    for r in db.execute("SELECT id FROM feeds WHERE user_id = ?",
+                        (user_id,)):
+        if r["id"] not in before:
+            db.execute("UPDATE feeds SET town_slug = ? WHERE id = ?",
+                       (slug, r["id"]))
+    db.commit()
+    return True, f"Added {town_name}."
+
+
+def remove_user_town(user_id, town_id):
+    """Remove an extra town from a user's list. The main town can never
+    be removed. The town's seeded feeds keep their stories but revert
+    to untagged (main-town) attribution, matching legacy feeds.
+    Returns (ok, message)."""
+    db = get_db()
+    row = db.execute("SELECT * FROM user_towns WHERE id = ? AND user_id = ?",
+                     (town_id, user_id)).fetchone()
+    if not row:
+        return False, "Town not found."
+    if row["is_main"]:
+        return False, "The main town can't be removed."
+    db.execute("UPDATE feeds SET town_slug = '' WHERE user_id = ? "
+               "AND town_slug = ?", (user_id, row["town_slug"]))
+    db.execute("DELETE FROM user_towns WHERE id = ?", (town_id,))
+    db.commit()
+    return True, f"Removed {row['town_name']}."
+
+
+def pro_town_news(user_id, view="unified", force_active=False,
+                  story_limit=500):
+    """Pro news views for a user.
+
+    view: 'unified' (all towns in one line, town chip per story) or
+    'towns' (grouped per town). Returns a dict with towns (each with
+    its stories, story_count and a greyed flag), the unified story
+    list, and the plan status. When the plan is not active, only
+    main-town stories are included; extra towns stay listed but
+    flagged greyed with no stories. force_active is for the admin
+    preview so it always shows the full multi-town view.
+    """
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE id = ?",
+                      (user_id,)).fetchone()
+    status, plan, expires_at = pro_status(user)
+    active = force_active or status == "active"
+    towns = get_user_towns(user_id)
+    main = next((t for t in towns if t["is_main"]), None)
+    main_slug = main["town_slug"] if main else ""
+
+    rows = db.execute(
+        "SELECT s.*, COALESCE(f.town_slug, '') AS ftown "
+        "FROM stories s LEFT JOIN feeds f ON f.id = s.feed_id "
+        "WHERE s.user_id = ? ORDER BY s.published DESC LIMIT ?",
+        (user_id, story_limit)).fetchall()
+
+    def story_town(story):
+        ft = story["ftown"] or ""
+        for t in towns:
+            if ft == t["town_slug"]:
+                return t
+        # Legacy feeds predate town_slug: they belong to the main town.
+        return main
+
+    unified = []
+    grouped = {t["id"]: [] for t in towns}
+    for r in rows:
+        t = story_town(r)
+        if t is None:
+            continue
+        if not t["is_main"] and not active:
+            continue  # lapsed: extra towns contribute no news
+        d = dict(r)
+        d["town_name"] = t["town_name"]
+        d["town_slug"] = t["town_slug"]
+        d["rel"] = rel_time(d["published"])
+        unified.append(d)
+        grouped[t["id"]].append(d)
+
+    town_views = []
+    for t in towns:
+        greyed = bool(not t["is_main"] and not active)
+        town_views.append({**t, "greyed": greyed,
+                           "stories": grouped[t["id"]] if not greyed else [],
+                           "story_count": (len(grouped[t["id"]])
+                                           if not greyed else 0)})
+    return {"towns": town_views, "unified": unified, "view": view,
+            "status": status if not force_active else "active",
+            "plan": plan, "expires_at": expires_at,
+            "main_town": main, "active": active}
+
+
+def send_pro_renewal_notices():
+    """Email Pro/Elite users 3 days before their subscription renews
+    (admin in BCC). Idempotent: pro_notice_sent_for records which
+    expiry the notice went out for, mirroring the sponsor notices.
+    Email failure never breaks the loop."""
+    db = get_db()
+    now = int(time.time())
+    target = now + 3 * 86400
+    for u in db.execute(
+            "SELECT * FROM users WHERE pro_plan IN ('pro','elite') "
+            "AND email != '' AND pro_expires_at >= ? AND "
+            "pro_expires_at < ? AND pro_notice_sent_for != pro_expires_at",
+            (target, target + 86400)).fetchall():
+        d = dict(u)
+        _, plan, expires_at = pro_status(d)
+        towns = get_user_towns(d["id"])
+        kept = ", ".join(t["town_name"] for t in towns) or "your town"
+        exp = pro_expiry_str(expires_at)
+        body = (
+            f"Hi {d['username']},\n\n"
+            f"Your TownsLine {plan.capitalize()} renews on {exp} "
+            f"— 3 days from now.\n\n"
+            f"Your towns stay saved: {kept}.\n\n"
+            f"To renew, just reply to this email.\n\n"
+            f"— TownsLine"
+        )
+        if send_email(d["email"],
+                      "Your TownsLine Pro renews in 3 days",
+                      body, bcc=ADMIN_EMAIL):
+            db.execute("UPDATE users SET pro_notice_sent_for = "
+                       "pro_expires_at WHERE id = ?", (d["id"],))
+    db.commit()
+
+
 def send_renewal_notices():
     """Email sponsors 3 days before their listing renews (admin in BCC).
 
@@ -645,6 +877,7 @@ def renewal_loop():
         try:
             with app.app_context():
                 send_renewal_notices()
+                send_pro_renewal_notices()
                 auto_pause_overdue_sponsors()
         except Exception as e:  # noqa: BLE001 - background job never dies
             app.logger.warning("renewal notices failed: %s", e)
@@ -866,6 +1099,40 @@ def init_db():
             db.execute(ddl)
         except sqlite3.OperationalError:
             pass  # column already there
+    # Pro multi-town subscriptions: plan + expiry on users, per-user news
+    # view preference on settings, town attribution on feeds, and the
+    # user's town list (main town + paid extra towns).
+    for ddl in (
+        "ALTER TABLE users ADD COLUMN pro_plan TEXT DEFAULT 'free'",
+        "ALTER TABLE users ADD COLUMN pro_expires_at INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN pro_notice_sent_for INTEGER DEFAULT 0",
+        "ALTER TABLE settings ADD COLUMN pro_view TEXT DEFAULT 'unified'",
+        "ALTER TABLE feeds ADD COLUMN town_slug TEXT DEFAULT ''",
+    ):
+        try:
+            db.execute(ddl)
+        except sqlite3.OperationalError:
+            pass  # column already there
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_towns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            town_name TEXT NOT NULL,
+            town_slug TEXT NOT NULL DEFAULT '',
+            lat REAL,
+            lon REAL,
+            is_main INTEGER DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            UNIQUE(user_id, town_slug),
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_towns_user "
+        "ON user_towns(user_id)"
+    )
     # Fix slugs for non-English town names: the old ASCII-only slugify
     # collapsed every non-Latin name to '', cross-matching unrelated
     # towns. Recompute from the stored town name (ASCII names are
@@ -2584,6 +2851,270 @@ def admin_sponsor_news_restore(nid):
         return redirect(url_for("admin_sponsor_detail",
                                 sid=row["sponsor_id"]))
     return redirect(url_for("admin_sponsors"))
+
+
+# ---------------------------------------------------------------- Pro multi-town subscriptions (admin-only)
+
+
+@app.route("/admin/pro")
+@login_required
+@admin_required
+def admin_pro():
+    """Admin: every user with their Pro plan, status, expiry and towns."""
+    db = get_db()
+    rows = db.execute(
+        "SELECT u.*, "
+        "(SELECT COUNT(*) FROM user_towns t WHERE t.user_id = u.id "
+        "AND t.is_main = 0) AS extras, "
+        "(SELECT town_name FROM user_towns t WHERE t.user_id = u.id "
+        "AND t.is_main = 1) AS main_town "
+        "FROM users u ORDER BY u.created_at DESC").fetchall()
+    users = []
+    for u in rows:
+        d = dict(u)
+        status, plan, expires_at = pro_status(d)
+        d["pro_status"] = status
+        d["pro_plan"] = plan
+        d["pro_expires_at"] = expires_at
+        d["expiry_str"] = pro_expiry_str(expires_at)
+        d["extra_limit"] = pro_extra_limit(plan)
+        d["max_towns"] = 1 + pro_extra_limit(plan)
+        users.append(d)
+    return render_template("admin_pro.html", users=users,
+                           user=current_user(),
+                           admin_username=ADMIN_USERNAME)
+
+
+@app.route("/admin/pro/<int:uid>")
+@login_required
+@admin_required
+def admin_pro_detail(uid):
+    """Admin: one user's subscription card — plan, status, expiry,
+    towns used — plus grant/extend/revoke and town management."""
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE id = ?",
+                      (uid,)).fetchone()
+    if not user:
+        flash("User not found.")
+        return redirect(url_for("admin_pro"))
+    d = dict(user)
+    status, plan, expires_at = pro_status(d)
+    towns = get_user_towns(uid)
+    main = next((t for t in towns if t["is_main"]), None)
+    main_slug = main["town_slug"] if main else ""
+    # Story counts per town via feed attribution (legacy '' = main).
+    counts = {}
+    for r in db.execute(
+            "SELECT COALESCE(f.town_slug, '') AS ts, COUNT(*) AS c "
+            "FROM stories s LEFT JOIN feeds f ON f.id = s.feed_id "
+            "WHERE s.user_id = ? GROUP BY ts", (uid,)):
+        key = r["ts"] if r["ts"] else main_slug
+        counts[key] = counts.get(key, 0) + r["c"]
+    for t in towns:
+        t["story_count"] = counts.get(t["town_slug"], 0)
+        t["greyed"] = bool(not t["is_main"] and status != "active")
+    extras = len([t for t in towns if not t["is_main"]])
+    return render_template(
+        "admin_pro_detail.html", user=current_user(), target=d,
+        status=status, plan=plan, expires_at=expires_at,
+        expiry_str=pro_expiry_str(expires_at), towns=towns,
+        extras=extras, max_towns=1 + pro_extra_limit(plan),
+        admin_username=ADMIN_USERNAME)
+
+
+@app.route("/admin/pro/<int:uid>/grant", methods=["POST"])
+@login_required
+@admin_required
+def admin_pro_grant(uid):
+    """Grant a plan with an expiry date (manual billing, no Stripe)."""
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE id = ?",
+                      (uid,)).fetchone()
+    if not user:
+        flash("User not found.")
+        return redirect(url_for("admin_pro"))
+    plan = request.form.get("plan", "free")
+    if plan not in ("free", "pro", "elite"):
+        flash("Unknown plan.")
+        return redirect(url_for("admin_pro_detail", uid=uid))
+    expires_at = 0
+    if plan in ("pro", "elite"):
+        date_s = request.form.get("expires", "").strip()
+        try:
+            dt = datetime.strptime(date_s, "%Y-%m-%d").replace(
+                tzinfo=timezone.utc) + timedelta(hours=23, minutes=59,
+                                                seconds=59)
+            expires_at = int(dt.timestamp())
+        except ValueError:
+            flash("Expiry date must be YYYY-MM-DD.")
+            return redirect(url_for("admin_pro_detail", uid=uid))
+        if expires_at <= int(time.time()):
+            flash("Expiry must be in the future.")
+            return redirect(url_for("admin_pro_detail", uid=uid))
+    db.execute("UPDATE users SET pro_plan = ?, pro_expires_at = ?, "
+               "pro_notice_sent_for = 0 WHERE id = ?",
+               (plan, expires_at, uid))
+    db.commit()
+    flash(f"Granted {plan.capitalize()}"
+          + (f" until {date_s}." if expires_at else "."))
+    return redirect(url_for("admin_pro_detail", uid=uid))
+
+
+@app.route("/admin/pro/<int:uid>/extend", methods=["POST"])
+@login_required
+@admin_required
+def admin_pro_extend(uid):
+    """Renew/extend: push the expiry forward N calendar months from
+    max(today, current expiry)."""
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE id = ?",
+                      (uid,)).fetchone()
+    if not user:
+        flash("User not found.")
+        return redirect(url_for("admin_pro"))
+    _, plan, expires_at = pro_status(dict(user))
+    if plan not in ("pro", "elite"):
+        flash("Grant a Pro or Elite plan first.")
+        return redirect(url_for("admin_pro_detail", uid=uid))
+    try:
+        months = int(request.form.get("months", "1"))
+    except ValueError:
+        months = 1
+    if months not in (1, 3, 6, 12):
+        months = 1
+    base = max(datetime.now(timezone.utc).date(),
+               datetime.fromtimestamp(expires_at,
+                                      tz=timezone.utc).date())
+    new_date = add_months(base, months)
+    new_expires = int(datetime(new_date.year, new_date.month, new_date.day,
+                               23, 59, 59,
+                               tzinfo=timezone.utc).timestamp())
+    db.execute("UPDATE users SET pro_expires_at = ?, "
+               "pro_notice_sent_for = 0 WHERE id = ?", (new_expires, uid))
+    db.commit()
+    flash(f"Extended {plan.capitalize()} to {new_date.isoformat()}.")
+    return redirect(url_for("admin_pro_detail", uid=uid))
+
+
+@app.route("/admin/pro/<int:uid>/revoke", methods=["POST"])
+@login_required
+@admin_required
+def admin_pro_revoke(uid):
+    """Revoke a subscription back to free. Towns stay saved."""
+    db = get_db()
+    if not db.execute("SELECT 1 FROM users WHERE id = ?",
+                      (uid,)).fetchone():
+        flash("User not found.")
+        return redirect(url_for("admin_pro"))
+    db.execute("UPDATE users SET pro_plan = 'free', pro_expires_at = 0, "
+               "pro_notice_sent_for = 0 WHERE id = ?", (uid,))
+    db.commit()
+    flash("Subscription revoked — towns stay saved, extra towns greyed.")
+    return redirect(url_for("admin_pro_detail", uid=uid))
+
+
+@app.route("/admin/pro/<int:uid>/towns/add", methods=["POST"])
+@login_required
+@admin_required
+def admin_pro_town_add(uid):
+    """Add an extra town to a user's list (slot limits enforced)."""
+    if not get_db().execute("SELECT 1 FROM users WHERE id = ?",
+                            (uid,)).fetchone():
+        flash("User not found.")
+        return redirect(url_for("admin_pro"))
+    ok, msg = add_user_town(uid, request.form.get("town_name", ""))
+    flash(msg)
+    return redirect(url_for("admin_pro_detail", uid=uid))
+
+
+@app.route("/admin/pro/<int:uid>/towns/<int:tid>/remove", methods=["POST"])
+@login_required
+@admin_required
+def admin_pro_town_remove(uid, tid):
+    """Remove an extra town from a user's list (never the main town)."""
+    ok, msg = remove_user_town(uid, tid)
+    flash(msg)
+    return redirect(url_for("admin_pro_detail", uid=uid))
+
+
+@app.route("/pro")
+@login_required
+@admin_required
+def pro_overview():
+    """Admin-only preview of the subscription card as a subscriber
+    would see it (plan, status, expiry, towns used)."""
+    user = current_user()
+    towns = get_user_towns(user["id"])
+    status, plan, expires_at = pro_status(user)
+    extras = len([t for t in towns if not t["is_main"]])
+    view = (get_settings(user["id"]).get("pro_view") or "unified")
+    return render_template(
+        "pro.html", user=user, status=status, plan=plan,
+        expires_at=expires_at, expiry_str=pro_expiry_str(expires_at),
+        towns=towns, extras=extras,
+        max_towns=1 + pro_extra_limit(plan), view=view)
+
+
+@app.route("/pro/view", methods=["POST"])
+@login_required
+@admin_required
+def pro_set_view():
+    """Persist the news-view toggle (unified / per-town) per user."""
+    user = current_user()
+    view = request.form.get("view", "unified")
+    if view not in ("unified", "towns"):
+        view = "unified"
+    get_db().execute("UPDATE settings SET pro_view = ? WHERE user_id = ?",
+                     (view, user["id"]))
+    get_db().commit()
+    flash(f"News view: {'one line' if view == 'unified' else 'per town'}.")
+    return redirect(url_for("pro_overview"))
+
+
+@app.route("/pro/news")
+@login_required
+@admin_required
+def pro_news():
+    """Admin-only preview of the two Pro news views (unified and
+    per-town) for the admin's own towns. Seeds demo extra towns when
+    the admin has none, so the preview always shows the multi-town
+    layout. The preview is forced active so extra towns always render.
+    """
+    user = current_user()
+    db = get_db()
+    view = request.args.get("view", "") or (
+        get_settings(user["id"]).get("pro_view") or "unified")
+    if view not in ("unified", "towns"):
+        view = "unified"
+    towns = get_user_towns(user["id"])
+    if len(towns) < 2:
+        for demo in ("Calgary", "Vancouver"):
+            slug = town_slug_for(demo)
+            if any(t["town_slug"] == slug for t in towns):
+                continue
+            try:
+                db.execute(
+                    "INSERT INTO user_towns (user_id, town_name, "
+                    "town_slug, is_main, created_at) "
+                    "VALUES (?,?,?,0,?)",
+                    (user["id"], demo, slug, int(time.time())))
+                before = {r["id"] for r in db.execute(
+                    "SELECT id FROM feeds WHERE user_id = ?",
+                    (user["id"],))}
+                seed_default_feeds(user["id"], demo)
+                for r in db.execute(
+                        "SELECT id FROM feeds WHERE user_id = ?",
+                        (user["id"],)):
+                    if r["id"] not in before:
+                        db.execute("UPDATE feeds SET town_slug = ? "
+                                   "WHERE id = ?", (slug, r["id"]))
+                db.commit()
+            except sqlite3.IntegrityError:
+                pass
+        towns = get_user_towns(user["id"])
+    data = pro_town_news(user["id"], view=view, force_active=True)
+    return render_template("pro_news.html", data=data, view=view,
+                           user=user)
 
 
 # ---------------------------------------------------------------- sponsor portal

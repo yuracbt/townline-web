@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Subscription — TownsLine{% endblock %}
+{% block content %}
+<h1>Your subscription</h1>
+<p class="muted small">Admin preview of the subscription card.</p>
+
+<div class="card pro-card">
+  <h2>Plan: {{ plan|capitalize }}</h2>
+  <p>Status: {% if status == 'active' %}<span class="status-pill ok">Active</span>{% else %}<span class="status-pill bad">Lapsed</span>{% endif %}</p>
+  <p>Renews / expires: <strong>{{ expiry_str }}</strong></p>
+  <p>Towns used: <strong>{{ extras + 1 if towns else extras }}/{{ max_towns }}</strong></p>
+  <p class="muted small">
+    {% if plan == 'free' %}Free covers your main town only.
+    {% elif plan == 'pro' %}Pro covers your main town plus up to 5 extra towns.
+    {% else %}Elite covers your main town plus up to 10 extra towns.{% endif %}
+    {% if status != 'active' and plan != 'free' %}
+    Your plan has lapsed — extra towns below are greyed out and their news is hidden until you renew. Nothing was deleted.
+    {% endif %}
+  </p>
+  {% if plan != 'free' %}
+  <p><button disabled title="Admin-managed billing">Renew / upgrade — contact us</button></p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Your towns</h2>
+  {% if towns %}
+  <ul class="town-list">
+  {% for t in towns %}
+    <li{% if status != 'active' and not t['is_main'] %} class="town-greyed"{% endif %}>
+      <span class="town-chip">{{ t['town_name'] }}</span>{% if t['is_main'] %} <span class="pill">Main</span>{% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No town set yet.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>News view</h2>
+  <form method="post" action="{{ url_for('pro_set_view') }}">
+    <label><input type="radio" name="view" value="unified" {% if view == 'unified' %}checked{% endif %}> One line — all towns together, each story labeled</label><br>
+    <label><input type="radio" name="view" value="towns" {% if view == 'towns' %}checked{% endif %}> Per town — grouped by town</label><br><br>
+    <button type="submit">Save view</button>
+  </form>
+  <p><a href="{{ url_for('pro_news') }}">Preview the news views →</a></p>
+</div>
+{% endblock %}

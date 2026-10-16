@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Pro subscriptions — TownsLine{% endblock %}
+{% block content %}
+<h1>Pro subscriptions</h1>
+<nav class="admin-nav"><a href="{{ url_for('admin_panel') }}">Administration</a> · <strong>Pro</strong> · <a href="{{ url_for('pro_overview') }}">Card preview</a> · <a href="{{ url_for('pro_news') }}">News preview</a></nav>
+
+<div class="card">
+  <h2>All users ({{ users|length }})</h2>
+  {% if users %}
+  <table class="admintable">
+    <thead><tr><th>User</th><th>Plan</th><th>Status</th><th>Expires</th><th>Main town</th><th>Towns</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for u in users %}
+      <tr>
+        <td><strong>{{ u['username'] }}</strong>{% if u['username'] == admin_username %} <span class="muted small">(you)</span>{% endif %}<br><span class="muted small">{{ u['email'] or '—' }}</span></td>
+        <td><span class="pill">{{ u['pro_plan']|capitalize }}</span></td>
+        <td>{% if u['pro_status'] == 'active' %}<span class="status-pill ok">Active</span>{% else %}<span class="status-pill bad">Lapsed</span>{% endif %}</td>
+        <td>{{ u['expiry_str'] }}</td>
+        <td>{{ u['main_town'] or '—' }}</td>
+        <td>{{ u['extras'] + 1 if u['main_town'] else u['extras'] }}/{{ u['max_towns'] }}</td>
+        <td><a href="{{ url_for('admin_pro_detail', uid=u['id']) }}">Manage</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No users yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

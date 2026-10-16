@@ -1782,8 +1782,11 @@ def magic_login(token):
             town_count=f"{len(TOWNS):,}")
     db.execute("UPDATE magic_links SET used_at = ? WHERE id = ?",
                (now, row["id"]))
-    user = db.execute("SELECT * FROM users WHERE email = ? "
-                      "ORDER BY id DESC LIMIT 1", (row["email"],)).fetchone()
+    # Match by email OR username: the admin account's username IS its email
+    # address, and older accounts may have an empty email field.
+    user = db.execute("SELECT * FROM users WHERE email = ? OR username = ? "
+                      "ORDER BY id DESC LIMIT 1",
+                      (row["email"], row["email"])).fetchone()
     if user and user["is_blocked"]:
         db.commit()
         return render_template(
@@ -1802,6 +1805,10 @@ def magic_login(token):
     else:
         uid = user["id"]
         username = user["username"]
+        if not user["email"]:
+            # Backfill: older accounts may have no email on file.
+            db.execute("UPDATE users SET email = ? WHERE id = ?",
+                       (row["email"], uid))
     town = TOWNS.get(row["town_slug"] or "")
     if town:
         apply_town_to_user(uid, town, db)
@@ -3079,15 +3086,22 @@ def settings_theme():
 @login_required
 def settings_account():
     user = current_user()
-    email = request.form.get("email", "").strip()
+    email = request.form.get("email", "").strip().lower()
     if not valid_email(email):
         flash("That does not look like a valid email address.")
     else:
         db = get_db()
-        db.execute("UPDATE users SET email = ? WHERE id = ?",
-                   (email, user["id"]))
-        db.commit()
-        flash("Email address saved.")
+        taken = db.execute(
+            "SELECT id FROM users WHERE (email = ? OR username = ?) "
+            "AND id != ?",
+            (email, email, user["id"])).fetchone()
+        if taken:
+            flash("That email is already in use by another account.")
+        else:
+            db.execute("UPDATE users SET email = ? WHERE id = ?",
+                       (email, user["id"]))
+            db.commit()
+            flash("Email address saved.")
     return redirect(url_for("settings_page"))
 
 

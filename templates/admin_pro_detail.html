@@ -76,6 +76,21 @@
     <p class="muted small">Results come from OpenStreetMap Nominatim. Pick a town to add it with the correct name.</p>
   </div>
   <p class="muted small">Adding a town seeds its feeds and tags them, so stories attribute to the right town.</p>
+  {% if untagged_feeds or untagged_places %}
+  <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border)">
+    <p class="muted small"><strong>{{ untagged_feeds }}</strong> untagged feed(s), <strong>{{ untagged_places }}</strong> untagged place(s) — these follow the main town. Assign them to the right town:</p>
+    <form method="post" action="{{ url_for('admin_pro_reassign_untagged', uid=target['id']) }}" class="remove-form">
+      <label>Town
+        <select name="town_slug">
+          {% for t in towns %}
+          <option value="{{ t['town_slug'] }}"{% if t['is_main'] %} selected{% endif %}>{{ t['town_name'] }}{% if t['is_main'] %} (main){% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit">Assign untagged</button>
+    </form>
+  </div>
+  {% endif %}
 </div>
 <script>
 const pq = document.getElementById('protownq');

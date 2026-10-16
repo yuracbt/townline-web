@@ -168,8 +168,11 @@ Replaces the single "Your town" card (Yuriy's review, 2026-10-16):
 - **"Make main"** (`POST /settings/towns/make_main`): flips `is_main`,
   swaps sort positions with the old main (order stays intuitive),
   and syncs `settings.town_name` so `ensure_main_town()` never reconciles
-  the flip back. Feed `town_slug`s don't change; untagged legacy feeds
-  follow the new main via the existing COALESCE rule.
+  the flip back. **Before flipping, untagged feeds/places are pinned to the
+  old main town's slug** — "untagged" means "added while this town was
+  main", so without the backfill they'd silently migrate to the new main
+  (this exact bug was caught live: Banff inherited Airdrie's places).
+  Tagged `town_slug`s never change, so story attribution is untouched.
 - No "Change main town" / "Add an extra town" search sections anymore:
   **"📍 Scan near me"** sits next to **"＋ Add Extra Town"**, which expands
   the same inline Nominatim picker (type → pick correct town name → feeds

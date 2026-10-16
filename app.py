@@ -844,9 +844,10 @@ def reorder_user_towns(user_id, ordered_ids):
 def make_main_town(user_id, town_id):
     """Make an extra town the main town. The previous main is demoted to
     extra and they swap sort positions, so the visible order stays
-    intuitive. Feed town_slug values don't change, so story attribution
-    is untouched; untagged legacy feeds follow the new main via the
-    existing COALESCE rule. settings.town_name is synced so
+    intuitive. Before flipping, untagged feeds/places (added while the
+    old town was main, where "untagged" means "belongs to main") are
+    pinned to the old town's slug — otherwise they'd silently migrate
+    to the new main town. settings.town_name is synced so
     ensure_main_town() never reconciles the flip back. Returns
     (ok, message)."""
     db = get_db()
@@ -858,6 +859,14 @@ def make_main_town(user_id, town_id):
         return False, "That's already your main town."
     main = db.execute("SELECT * FROM user_towns WHERE user_id = ? "
                       "AND is_main = 1", (user_id,)).fetchone()
+    if main and main["town_slug"]:
+        # Pin legacy items to the outgoing main town first.
+        db.execute("UPDATE feeds SET town_slug = ? WHERE user_id = ? "
+                   "AND COALESCE(town_slug, '') = ''",
+                   (main["town_slug"], user_id))
+        db.execute("UPDATE places SET town_slug = ? WHERE user_id = ? "
+                   "AND COALESCE(town_slug, '') = ''",
+                   (main["town_slug"], user_id))
     if main:
         db.execute("UPDATE user_towns SET is_main = 0, sort_order = ? "
                    "WHERE id = ?", (row["sort_order"], main["id"]))
@@ -3050,12 +3059,21 @@ def admin_pro_detail(uid):
         t["story_count"] = counts.get(t["town_slug"], 0)
         t["greyed"] = bool(not t["is_main"] and status != "active")
     extras = len([t for t in towns if not t["is_main"]])
+    # Untagged legacy items (feeds/places added before per-town tagging)
+    # for a one-time reassignment after a main-town switch.
+    untagged_feeds = db.execute(
+        "SELECT COUNT(*) c FROM feeds WHERE user_id = ? "
+        "AND COALESCE(town_slug, '') = ''", (uid,)).fetchone()["c"]
+    untagged_places = db.execute(
+        "SELECT COUNT(*) c FROM places WHERE user_id = ? "
+        "AND COALESCE(town_slug, '') = ''", (uid,)).fetchone()["c"]
     return render_template(
         "admin_pro_detail.html", user=current_user(), target=d,
         status=status, plan=plan, expires_at=expires_at,
         expiry_str=pro_expiry_str(expires_at), towns=towns,
         extras=extras, max_towns=1 + pro_extra_limit(plan),
-        admin_username=ADMIN_USERNAME)
+        admin_username=ADMIN_USERNAME,
+        untagged_feeds=untagged_feeds, untagged_places=untagged_places)
 
 
 @app.route("/admin/pro/<int:uid>/grant", methods=["POST"])
@@ -3184,6 +3202,35 @@ def admin_pro_town_remove(uid, tid):
     """Remove an extra town from a user's list (never the main town)."""
     ok, msg = remove_user_town(uid, tid)
     flash(msg)
+    return redirect(url_for("admin_pro_detail", uid=uid))
+
+
+@app.route("/admin/pro/<int:uid>/reassign_untagged", methods=["POST"])
+@login_required
+@admin_required
+def admin_pro_reassign_untagged(uid):
+    """One-time repair: tag a user's untagged feeds/places with the
+    chosen town (e.g. after a main-town switch moved legacy items)."""
+    db = get_db()
+    if not db.execute("SELECT 1 FROM users WHERE id = ?",
+                      (uid,)).fetchone():
+        flash("User not found.")
+        return redirect(url_for("admin_pro"))
+    slug = (request.form.get("town_slug") or "").strip()
+    slugs = {t["town_slug"] for t in get_user_towns(uid)}
+    if slug not in slugs:
+        flash("Pick one of the user's towns.")
+        return redirect(url_for("admin_pro_detail", uid=uid))
+    f = db.execute("UPDATE feeds SET town_slug = ? WHERE user_id = ? "
+                   "AND COALESCE(town_slug, '') = ''",
+                   (slug, uid)).rowcount
+    p = db.execute("UPDATE places SET town_slug = ? WHERE user_id = ? "
+                   "AND COALESCE(town_slug, '') = ''",
+                   (slug, uid)).rowcount
+    db.commit()
+    name = next((t["town_name"] for t in get_user_towns(uid)
+                 if t["town_slug"] == slug), slug)
+    flash(f"Assigned {f} feed(s) and {p} place(s) to {name}.")
     return redirect(url_for("admin_pro_detail", uid=uid))
 
 

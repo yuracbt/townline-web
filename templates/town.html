@@ -14,12 +14,11 @@
 </div>
 
 <div class="card town-card town-video">
-  <h2>Watch how it works <span class="muted">(36 sec)</span></h2>
+  <h2>Watch how it works <span class="muted">(83 sec)</span></h2>
   <div class="video-wrap">
-    <iframe src="https://www.youtube-nocookie.com/embed/fUcRYw22hSo"
-            title="TownsLine promo video" frameborder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowfullscreen loading="lazy"></iframe>
+    <video controls preload="metadata" playsinline
+           src="{{ url_for('static', filename='townsline-user-walkthrough.mp4', v=css_version) }}"
+           title="TownsLine user walkthrough"></video>
   </div>
 </div>
 

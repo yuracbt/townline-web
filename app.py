@@ -3895,12 +3895,36 @@ def places_page():
     sponsors = get_sponsors_for_user(settings)
     penabled = pro_enabled(user)
     pro_towns, pro_place_groups = [], []
+    pro_place_tiles, pro_place_filter = [], "all"
     if penabled:
         # Group places under town headers in the user's town order;
         # untagged (legacy / non-Pro) places join the main town.
         pro_towns = get_user_towns(user["id"])
+        pro_status_s, _, _ = pro_status(user)
+        pro_active = pro_status_s == "active"
+        slugs = {t["town_slug"] for t in pro_towns}
         main_slug = next((t["town_slug"] for t in pro_towns if t["is_main"]),
                          "")
+        # The places view shares the dashboard/feeds "current town"
+        # concept: picking a tile here switches the news line too.
+        qtown = (request.args.get("town") or "").strip()
+        if qtown:
+            if qtown != "all" and (qtown not in slugs or
+                                  (not pro_active and qtown != main_slug)):
+                qtown = main_slug or "all"
+            pro_place_filter = qtown if qtown in slugs or qtown == "all" \
+                else "all"
+            if (settings.get("pro_town_filter") or "all") != pro_place_filter:
+                db.execute("UPDATE settings SET pro_town_filter = ? "
+                           "WHERE user_id = ?", (pro_place_filter, user["id"]))
+                db.commit()
+                settings["pro_town_filter"] = pro_place_filter
+        else:
+            saved = (settings.get("pro_town_filter") or "all")
+            if saved != "all" and (saved not in slugs or
+                                  (not pro_active and saved != main_slug)):
+                saved = main_slug or "all"
+            pro_place_filter = saved
         groups = {t["town_slug"]: {"town_name": t["town_name"],
                                    "town_slug": t["town_slug"],
                                    "is_main": bool(t["is_main"]),
@@ -3914,10 +3938,30 @@ def places_page():
         pro_place_groups = [groups[t["town_slug"]] for t in pro_towns]
         for g in pro_place_groups:
             g["places"].sort(key=lambda d: d["name"].lower())
+        if pro_place_filter != "all":
+            pro_place_groups = [g for g in pro_place_groups
+                                if g["town_slug"] == pro_place_filter]
+        # Town tiles row (same component as dashboard/feeds).
+        pro_place_tiles = [{
+            "slug": "all", "name": "All towns", "is_main": False,
+            "greyed": False, "active": pro_place_filter == "all",
+            "url": url_for("places_page", town="all"),
+        }]
+        for t in pro_towns:
+            greyed = bool(not t["is_main"] and not pro_active)
+            pro_place_tiles.append({
+                "slug": t["town_slug"], "name": t["town_name"],
+                "is_main": bool(t["is_main"]), "greyed": greyed,
+                "active": pro_place_filter == t["town_slug"],
+                "url": (None if greyed else
+                        url_for("places_page", town=t["town_slug"])),
+            })
     return render_template("places.html", user=user, settings=settings,
                            places=places, sponsors=sponsors,
                            pro_enabled=penabled, pro_towns=pro_towns,
-                           pro_place_groups=pro_place_groups)
+                           pro_place_groups=pro_place_groups,
+                           pro_place_tiles=pro_place_tiles,
+                           pro_place_filter=pro_place_filter)
 
 
 @app.route("/api/places/suggestions")

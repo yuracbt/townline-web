@@ -6,7 +6,7 @@
 <div class="card">
   <h2>Account</h2>
   <form method="post" action="{{ url_for('settings_account') }}">
-    <label>Email (used for password recovery)
+    <label>Email (your login — we email you a sign-in link)
       <input type="email" name="email" value="{{ user['email'] or '' }}" autocomplete="email" required>
     </label>
     <button type="submit">Save email</button>

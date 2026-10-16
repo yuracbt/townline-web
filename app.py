@@ -13,6 +13,7 @@ import math
 import os
 import re
 import secrets
+import hashlib
 import sqlite3
 import threading
 import time
@@ -25,7 +26,6 @@ import feedparser
 import requests
 from flask import (Flask, flash, g, jsonify, redirect, render_template,
                    request, Response, session, url_for)
-from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from categorizer import categorize, think_source
@@ -698,16 +698,25 @@ def init_db():
             pass  # column already there
     db.execute(
         """
-        CREATE TABLE IF NOT EXISTS password_resets (
+        CREATE TABLE IF NOT EXISTS magic_links (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            token TEXT UNIQUE NOT NULL,
-            expires_at INTEGER NOT NULL,
-            used INTEGER DEFAULT 0,
+            email TEXT NOT NULL,
+            token_hash TEXT NOT NULL UNIQUE,
+            town_slug TEXT DEFAULT '',
             created_at INTEGER NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            expires_at INTEGER NOT NULL,
+            used_at INTEGER DEFAULT 0,
+            ip TEXT DEFAULT ''
         )
         """
+    )
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_magic_links_hash "
+        "ON magic_links(token_hash)"
+    )
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_magic_links_email "
+        "ON magic_links(email)"
     )
     # Drop duplicate feeds/places that slipped in before the dedup guards.
     _dedup_table(db, "feeds")
@@ -845,18 +854,106 @@ def valid_email(addr):
     return bool(addr and EMAIL_RE.match(addr.strip()))
 
 
-def password_problems(pw):
-    """Return a list of unmet strength requirements (empty = strong enough)."""
-    problems = []
-    if len(pw or "") < 8:
-        problems.append("at least 8 characters")
-    if not re.search(r"[A-Z]", pw or ""):
-        problems.append("at least one capital letter")
-    if not re.search(r"[0-9]", pw or ""):
-        problems.append("at least one number")
-    if not re.search(r"[^A-Za-z0-9]", pw or ""):
-        problems.append("at least one special character")
-    return problems
+# ---------------------------------------------------------------- magic-link login
+# Passwordless auth: the user's email IS the account. We email a single-use,
+# short-lived login link; clicking it creates the session. No passwords.
+
+MAGIC_LINK_TTL = 900  # login links live for 15 minutes
+MAGIC_LINK_HOURLY_CAP = 5  # max links per email per hour (anti-spam)
+MAGIC_LINK_RESEND_WAIT = 60  # seconds before the same email gets another link
+
+
+def send_login_link_email(to_addr, link, is_new):
+    """Email the one-click login link. Returns True on success."""
+    if is_new:
+        subject = "Welcome to TownsLine — here's your login link"
+        body = (
+            "Welcome to TownsLine!\n\n"
+            "Your account is ready — click this link to step inside "
+            "(valid for 15 minutes):\n"
+            f"{link}\n\n"
+            "No password needed, ever. Your email is the key to your own "
+            "TownsLine.\n\n"
+            "If you didn't ask for this, just ignore this message.\n"
+            "— TownsLine"
+        )
+    else:
+        subject = "Your TownsLine login link"
+        body = (
+            "Here's your one-click login link for TownsLine "
+            "(valid for 15 minutes):\n"
+            f"{link}\n\n"
+            "Just click it and you're in — no password needed.\n\n"
+            "If you didn't ask for this, just ignore this message.\n"
+            "— TownsLine"
+        )
+    return send_email(to_addr, subject, body)
+
+
+def username_from_email(email, db):
+    """Derive a unique internal username from an email address."""
+    local = email.split("@")[0].lower()
+    base = re.sub(r"[^a-z0-9]", "", local)[:20] or "reader"
+    name, i = base, 2
+    while db.execute("SELECT id FROM users WHERE username = ?",
+                     (name,)).fetchone():
+        name = f"{base}{i}"
+        i += 1
+    return name
+
+
+def request_magic_link(email, town_slug="", ip=""):
+    """Create and email a login link. Returns (message, sent).
+
+    Always returns the same friendly message — never reveals whether the
+    email belongs to an account, and silently honors rate limits.
+    """
+    db = get_db()
+    now = int(time.time())
+    email = (email or "").strip().lower()
+    if not valid_email(email):
+        return "Please enter a valid email address.", False
+    sent_msg = ("Check your inbox — we emailed you a login link "
+                "(valid 15 minutes).")
+    recent = db.execute(
+        "SELECT COUNT(*) AS c FROM magic_links WHERE email = ? AND created_at > ?",
+        (email, now - 3600)).fetchone()["c"]
+    last = db.execute(
+        "SELECT created_at FROM magic_links WHERE email = ? "
+        "ORDER BY created_at DESC LIMIT 1",
+        (email,)).fetchone()
+    if recent >= MAGIC_LINK_HOURLY_CAP or (last and now - last["created_at"] < MAGIC_LINK_RESEND_WAIT):
+        return sent_msg, True  # rate-limited: stay silent, stay friendly
+    user = db.execute("SELECT * FROM users WHERE email = ? "
+                      "ORDER BY id DESC LIMIT 1", (email,)).fetchone()
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    db.execute(
+        "INSERT INTO magic_links (email, token_hash, town_slug, created_at, "
+        "expires_at, ip) VALUES (?,?,?,?,?,?)",
+        (email, token_hash, town_slug or "", now, now + MAGIC_LINK_TTL,
+         ip or ""))
+    db.commit()
+    link = url_for("magic_login", token=token, _external=True)
+    if not send_login_link_email(email, link, user is None):
+        # Email not configured (local dev): log the link so it isn't lost.
+        app.logger.warning("magic link for %s: %s", email, link)
+    return sent_msg, True
+
+
+def apply_town_to_user(uid, town, db):
+    """Set the user's town, seed its feeds + places, and start a scan."""
+    db.execute(
+        "UPDATE settings SET town_name = ?, lat = ?, lon = ?, "
+        "state = ?, country_code = ? WHERE user_id = ?",
+        (town["name"], town.get("lat"), town.get("lon"),
+         town.get("region", ""), town.get("country_code", ""), uid))
+    seed_default_feeds(uid, town["name"], state=town.get("region", ""),
+                       country_code=town.get("country_code", ""),
+                       lat=town.get("lat"), lon=town.get("lon"))
+    seed_places_for_town(uid, town["name"])
+    db.commit()
+    threading.Thread(target=scan_user, args=(uid,), daemon=True).start()
 
 
 # Outgoing mail for password resets. Configure on the server, e.g.
@@ -912,43 +1009,8 @@ def notify_admin(subject, body):
         app.logger.warning("admin notify failed: %s", e)
 
 
-def send_reset_email(to_addr, reset_link):
-    """Send the password-reset link. Returns True on success."""
-    return send_email(
-        to_addr,
-        "TownsLine password reset",
-        "Someone requested a password reset for your TownsLine account.\n\n"
-        "Reset your password here (valid for 1 hour):\n"
-        f"{reset_link}\n\n"
-        "If this was not you, just ignore this message.",
-    )
-
-
-def send_temp_password_email(to_addr, username, temp_password, login_link,
-                             reset_link):
-    """Notify a user that the admin reset their password. True on success."""
-    return send_email(
-        to_addr,
-        "TownsLine: your password was reset",
-        f"Hi {username},\n\n"
-        "The TownsLine administrator has reset your password.\n\n"
-        f"Your temporary password is: {temp_password}\n\n"
-        f"Log in here: {login_link}\n\n"
-        "Or set your own password right away with this one-time link "
-        f"(valid for 1 hour):\n{reset_link}\n\n"
-        "If this was not expected, contact the administrator.",
-    )
-
-
-def generate_temp_password():
-    """One-time temporary password that passes the strength policy."""
-    import string
-    # 12 chars, guaranteed to include upper, digit and special.
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*-_=+"
-    while True:
-        pw = "".join(secrets.choice(alphabet) for _ in range(12))
-        if not password_problems(pw):
-            return pw
+# ---------------------------------------------------------------- magic-link login
+# (helpers live above, next to send_email)
 
 
 def login_required(view):
@@ -1690,86 +1752,86 @@ def register():
     town = None
     if request.method == "GET":
         town = TOWNS.get(request.args.get("town", "").strip())
-    error = None
+    message = None
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
         email = request.form.get("email", "").strip()
-        password = request.form.get("password", "")
-        town = TOWNS.get(request.form.get("town_slug", "").strip())
-        db = get_db()
-        pw_problems = password_problems(password)
-        if not username or not email or not password:
-            error = "Username, email and password are all required."
-        elif not valid_email(email):
-            error = "That does not look like a valid email address."
-        elif db.execute("SELECT id FROM users WHERE username = ?",
-                        (username,)).fetchone():
-            error = "That username is taken — please pick another."
-        elif pw_problems:
-            error = "Password needs " + ", ".join(pw_problems) + "."
+        town_slug = request.form.get("town_slug", "").strip()
+        town = TOWNS.get(town_slug)
+        message, _ = request_magic_link(email, town_slug,
+                                        request.remote_addr or "")
+    return render_template("register.html", town=town, message=message)
+
+
+@app.route("/auth/<token>")
+def magic_login(token):
+    """One-click login from an emailed magic link. Single-use, 15 minutes."""
+    if current_user():
+        return redirect(url_for("dashboard"))
+    db = get_db()
+    now = int(time.time())
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    row = db.execute(
+        "SELECT * FROM magic_links WHERE token_hash = ? AND used_at = 0 "
+        "AND expires_at > ?",
+        (token_hash, now)).fetchone()
+    if not row:
+        return render_template(
+            "login.html",
+            error="That login link is invalid or expired — "
+                  "request a fresh one below.",
+            town_count=f"{len(TOWNS):,}")
+    db.execute("UPDATE magic_links SET used_at = ? WHERE id = ?",
+               (now, row["id"]))
+    user = db.execute("SELECT * FROM users WHERE email = ? "
+                      "ORDER BY id DESC LIMIT 1", (row["email"],)).fetchone()
+    if user and user["is_blocked"]:
+        db.commit()
+        return render_template(
+            "login.html",
+            error="This account has been blocked. Contact the administrator.",
+            town_count=f"{len(TOWNS):,}")
+    is_new = user is None
+    if is_new:
+        username = username_from_email(row["email"], db)
+        cur = db.execute(
+            "INSERT INTO users (username, email, pw_hash, created_at) "
+            "VALUES (?,?,?,?)",
+            (username, row["email"], "", now))
+        uid = cur.lastrowid
+        db.execute("INSERT INTO settings (user_id) VALUES (?)", (uid,))
+    else:
+        uid = user["id"]
+        username = user["username"]
+    town = TOWNS.get(row["town_slug"] or "")
+    if town:
+        apply_town_to_user(uid, town, db)
+    db.commit()
+    if is_new:
+        notify_admin(
+            f"New TownsLine account: {username}",
+            f"A new user just registered on TownsLine.\n\n"
+            f"Username: {username}\nEmail: {row['email']}\n",
+        )
+        if town:
+            flash(f"Welcome! {town['name']} news, feeds and places "
+                  f"are all set up for you.")
         else:
-            pw_hash = generate_password_hash(password, method="pbkdf2:sha256")
-            cur = db.execute(
-                "INSERT INTO users (username, email, pw_hash, created_at) "
-                "VALUES (?,?,?,?)",
-                (username, email, pw_hash, int(time.time())),
-            )
-            uid = cur.lastrowid
-            db.execute("INSERT INTO settings (user_id) VALUES (?)", (uid,))
-            if town:
-                # Town preloaded: set it and seed its feeds + places, then
-                # scan right away — the inbox is ready, no Settings detour.
-                db.execute(
-                    "UPDATE settings SET town_name = ?, lat = ?, lon = ?, "
-                    "state = ?, country_code = ? WHERE user_id = ?",
-                    (town["name"], town.get("lat"), town.get("lon"),
-                     town.get("region", ""), town.get("country_code", ""),
-                     uid),
-                )
-                seed_default_feeds(
-                    uid, town["name"], state=town.get("region", ""),
-                    country_code=town.get("country_code", ""),
-                    lat=town.get("lat"), lon=town.get("lon"))
-                seed_places_for_town(uid, town["name"])
-            db.commit()
-            notify_admin(
-                f"New TownsLine account: {username}",
-                f"A new user just registered on TownsLine.\n\n"
-                f"Username: {username}\nEmail: {email}\n",
-            )
-            session["user_id"] = uid
-            if town:
-                threading.Thread(target=scan_user, args=(uid,),
-                                 daemon=True).start()
-                flash(f"Welcome! {town['name']} news, feeds and places "
-                      f"are all set up for you.")
-                return redirect(url_for("dashboard"))
-            # Blank slate: no town, no feeds. The user picks their location
-            # in Settings, which seeds matching feeds for that town.
-            return redirect(url_for("settings_page"))
-    return render_template("register.html", error=error, town=town)
+            flash("Welcome to TownsLine! Pick your town in Settings to "
+                  "personalize your inbox.")
+    session["user_id"] = uid
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if current_user():
         return redirect(url_for("dashboard"))
-    error = None
+    message = None
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
-        db = get_db()
-        user = db.execute("SELECT * FROM users WHERE username = ?",
-                          (username,)).fetchone()
-        if user and check_password_hash(user["pw_hash"], password):
-            if user["is_blocked"]:
-                error = "This account has been blocked. Contact the administrator."
-            else:
-                session["user_id"] = user["id"]
-                return redirect(url_for("dashboard"))
-        else:
-            error = "Wrong username or password."
-    return render_template("login.html", error=error,
+        email = request.form.get("email", "").strip()
+        message, _ = request_magic_link(email, "",
+                                        request.remote_addr or "")
+    return render_template("login.html", message=message,
                            town_count=f"{len(TOWNS):,}")
 
 
@@ -1805,75 +1867,6 @@ def logout():
     return redirect(url_for("login"))
 
 
-# ---------------------------------------------------------------- password recovery
-
-RESET_TOKEN_TTL = 3600  # reset links live for 1 hour
-
-
-@app.route("/forgot", methods=["GET", "POST"])
-def forgot_password():
-    if current_user():
-        return redirect(url_for("dashboard"))
-    message = None
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        db = get_db()
-        user = db.execute("SELECT * FROM users WHERE username = ?",
-                          (username,)).fetchone()
-        if user and user["email"]:
-            token = secrets.token_urlsafe(32)
-            db.execute(
-                "INSERT INTO password_resets (user_id, token, expires_at, "
-                "created_at) VALUES (?,?,?,?)",
-                (user["id"], token, int(time.time()) + RESET_TOKEN_TTL,
-                 int(time.time())),
-            )
-            db.commit()
-            reset_link = url_for("password_reset", token=token, _external=True)
-            send_reset_email(user["email"], reset_link)
-        # Same message either way: do not reveal which usernames exist.
-        message = ("If that username exists and has an email on file, a "
-                   "password-reset link is on its way. It is valid for "
-                   "1 hour.")
-    return render_template("forgot.html", message=message)
-
-
-@app.route("/reset/<token>", methods=["GET", "POST"])
-def password_reset(token):
-    if current_user():
-        return redirect(url_for("dashboard"))
-    db = get_db()
-    row = db.execute(
-        "SELECT pr.*, u.username FROM password_resets pr "
-        "JOIN users u ON u.id = pr.user_id "
-        "WHERE pr.token = ? AND pr.used = 0 AND pr.expires_at > ?",
-        (token, int(time.time())),
-    ).fetchone()
-    if not row:
-        return render_template("reset.html", invalid=True)
-    error = None
-    if request.method == "POST":
-        password = request.form.get("password", "")
-        confirm = request.form.get("confirm", "")
-        pw_problems = password_problems(password)
-        if password != confirm:
-            error = "The two passwords do not match."
-        elif pw_problems:
-            error = "Password needs " + ", ".join(pw_problems) + "."
-        else:
-            db.execute("UPDATE users SET pw_hash = ? WHERE id = ?",
-                       (generate_password_hash(password,
-                                                method="pbkdf2:sha256"),
-                        row["user_id"]))
-            db.execute("UPDATE password_resets SET used = 1 WHERE id = ?",
-                       (row["id"],))
-            db.commit()
-            flash("Your password was reset. Log in with the new one.")
-            return redirect(url_for("login"))
-    return render_template("reset.html", invalid=False, error=error,
-                           username=row["username"])
-
-
 # ---------------------------------------------------------------- administration
 
 @app.route("/admin")
@@ -1886,13 +1879,6 @@ def admin_panel():
         "(SELECT COUNT(*) FROM stories s WHERE s.user_id = u.id) AS stories, "
         "(SELECT COUNT(*) FROM feeds f WHERE f.user_id = u.id) AS feeds "
         "FROM users u ORDER BY u.created_at DESC"
-    ).fetchall()
-    tokens = db.execute(
-        "SELECT pr.token, pr.expires_at, u.username, u.email "
-        "FROM password_resets pr JOIN users u ON u.id = pr.user_id "
-        "WHERE pr.used = 0 AND pr.expires_at > ? "
-        "ORDER BY pr.created_at DESC",
-        (int(time.time()),),
     ).fetchall()
     now = int(time.time())
     user_rows = []
@@ -1913,14 +1899,6 @@ def admin_panel():
             towns.append({"label": label})
         d["towns"] = towns
         user_rows.append(d)
-    token_rows = []
-    for t in tokens:
-        d = dict(t)
-        mins = max(0, (t["expires_at"] - now) // 60)
-        d["expires_str"] = f"expires in {mins} min"
-        d["link"] = url_for("password_reset", token=t["token"],
-                            _external=True)
-        token_rows.append(d)
     feedback_rows = []
     for f in db.execute(
         "SELECT f.message, f.created_at, u.username, u.email "
@@ -1936,7 +1914,7 @@ def admin_panel():
         "WHERE n.sponsor_id = s.id AND n.is_active = 1) AS news_count "
         "FROM sponsors s ORDER BY s.is_active DESC, s.name").fetchall()]
     flag_overdue_sponsors(sponsor_rows)
-    return render_template("admin.html", users=user_rows, tokens=token_rows,
+    return render_template("admin.html", users=user_rows,
                            feedback=feedback_rows, sponsors=sponsor_rows,
                            admin_username=ADMIN_USERNAME,
                            email_ok=email_configured(),
@@ -1966,47 +1944,21 @@ def admin_block():
     return redirect(url_for("admin_panel"))
 
 
-@app.route("/admin/reset_password", methods=["POST"])
+@app.route("/admin/send_login_link", methods=["POST"])
 @login_required
 @admin_required
-def admin_reset_password():
-    """Admin sets a one-time temporary password for a user and notifies
-    them by email (when delivery is configured). The temp password is
-    also shown to the admin, since stored passwords are one-way hashes
-    and can never be displayed."""
+def admin_send_login_link():
+    """Admin emails a one-click login link to a user (e.g. they're locked
+    out or never got theirs). Same magic link as the login page."""
     target_id = int(request.form.get("user_id", 0) or 0)
     db = get_db()
     target = db.execute("SELECT * FROM users WHERE id = ?",
                         (target_id,)).fetchone()
-    if not target:
-        flash("User not found.")
-        return redirect(url_for("admin_panel"))
-    temp = generate_temp_password()
-    db.execute("UPDATE users SET pw_hash = ? WHERE id = ?",
-               (generate_password_hash(temp, method="pbkdf2:sha256"),
-                target_id))
-    # One-time "set your own password" link, same as the forgot flow.
-    token = secrets.token_urlsafe(32)
-    db.execute(
-        "INSERT INTO password_resets (user_id, token, expires_at, "
-        "created_at) VALUES (?,?,?,?)",
-        (target_id, token, int(time.time()) + RESET_TOKEN_TTL,
-         int(time.time())),
-    )
-    db.commit()
-    emailed = False
-    if target["email"]:
-        emailed = send_temp_password_email(
-            target["email"], target["username"], temp,
-            url_for("login", _external=True),
-            url_for("password_reset", token=token, _external=True),
-        )
-    flash(f"Password for {target['username']} reset. "
-          f"Temporary password: {temp}"
-          + (f" — emailed to {target['email']}."
-             if emailed else
-             " — email NOT sent (no email on file or delivery "
-             "not configured)."))
+    if not target or not target["email"]:
+        flash("User not found or has no email on file.")
+    else:
+        request_magic_link(target["email"], "", request.remote_addr or "")
+        flash(f"Login link sent to {target['email']}.")
     return redirect(url_for("admin_panel"))
 
 
@@ -2025,7 +1977,7 @@ def admin_delete():
         flash("You cannot delete your own admin account.")
     else:
         # Manual cascade: SQLite foreign keys are not enforced here.
-        for table in ("password_resets", "stories", "feeds", "places",
+        for table in ("stories", "feeds", "places",
                       "settings"):
             db.execute(f"DELETE FROM {table} WHERE user_id = ?",
                        (target_id,))
@@ -3280,7 +3232,7 @@ def robots_txt():
 
 @app.route("/sitemap.xml")
 def sitemap_xml():
-    pages = ["/login", "/register", "/forgot", "/about", "/towns"]
+    pages = ["/login", "/register", "/about", "/towns"]
     urls = "".join(
         f"<url><loc>{SITE_URL}{p}</loc><changefreq>weekly</changefreq>"
         f"<priority>0.8</priority></url>" for p in pages)

@@ -26,10 +26,10 @@
             <button type="submit" class="linklike">{% if u['is_blocked'] %}Unblock{% else %}Block{% endif %}</button>
           </form>
           |
-          <form method="post" action="{{ url_for('admin_reset_password') }}" style="display:inline"
-                onsubmit="return confirm('Reset the password for {{ u['username'] }}? They will get a temporary password by email.')">
+          <form method="post" action="{{ url_for('admin_send_login_link') }}" style="display:inline"
+                onsubmit="return confirm('Email a login link to {{ u['username'] }}?')">
             <input type="hidden" name="user_id" value="{{ u['id'] }}">
-            <button type="submit" class="linklike">Reset password</button>
+            <button type="submit" class="linklike">Email login link</button>
           </form>
           |
           <form method="post" action="{{ url_for('admin_delete') }}" style="display:inline"
@@ -128,32 +128,6 @@ document.addEventListener('click', function(e){
   </table>
   {% else %}
   <p class="muted">No feedback yet.</p>
-  {% endif %}
-</div>
-
-<div class="card">
-  <h2>Password reset requests</h2>
-  {% if email_ok %}
-    <p class="muted small">Email delivery is configured — reset links are emailed automatically.</p>
-  {% else %}
-    <p class="muted small">Email delivery is <strong>not configured</strong> (set SMTP_HOST/SMTP_FROM on the server). Outstanding links are listed below so you can forward them manually.</p>
-  {% endif %}
-  {% if tokens %}
-  <table class="admintable">
-    <thead><tr><th>User</th><th>Email</th><th>Link</th><th>Validity</th></tr></thead>
-    <tbody>
-    {% for t in tokens %}
-      <tr>
-        <td>{{ t['username'] }}</td>
-        <td>{{ t['email'] }}</td>
-        <td><input type="text" readonly value="{{ t['link'] }}" onclick="this.select()" style="width:100%"></td>
-        <td>{{ t['expires_str'] }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-    <p class="muted">No outstanding reset requests.</p>
   {% endif %}
 </div>
 {% endblock %}

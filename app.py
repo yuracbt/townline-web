@@ -1023,7 +1023,7 @@ def send_due_digests():
             f"{'story' if len(stories) == 1 else 'stories'}:\n\n"
             + "\n\n".join(lines) +
             "\n\nRead them all at https://townsline.com/\n"
-            "Turn off digests any time in Settings → Notifications.\n\n"
+            "Turn off digests any time in Settings → Scanning.\n\n"
             "— TownsLine"
         )
         try:

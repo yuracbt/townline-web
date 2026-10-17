@@ -61,7 +61,7 @@
             <span class="muted small">Make main</span>
           </label>
         </form>
-        <form method="post" action="{{ url_for('settings_town_remove', tid=t.id) }}" class="inline-form" onsubmit="return confirm('Remove this town?')">
+        <form method="post" action="{{ url_for('settings_town_remove', tid=t.id) }}" class="inline-form" onsubmit='return confirm({{ ("Remove " + t.town_name + "?\n\nThis deletes the town and EVERYTHING in it: " + t.n_feeds|string + " feeds, " + t.n_stories|string + " stories, " + t.n_places|string + " places.\nThis cannot be undone.")|tojson }});'>
           <button type="submit" class="btn small danger">Remove</button>
         </form>
       </span>
@@ -72,7 +72,9 @@
   <p class="muted small" id="towns-order-status" role="status"></p>
   <div class="btnrow">
     <button type="button" class="btn" id="scan-near-btn">📍 Scan near me</button>
-    {% if pro_sub.extras >= pro_sub.max_extras %}
+    {% if pro_sub.status != 'active' %}
+    <p class="muted small">{{ pro_sub.extras }}/{{ pro_sub.max_extras }} towns used — renew the subscription to add towns.</p>
+    {% elif pro_sub.extras >= pro_sub.max_extras %}
     <button type="button" class="btn" disabled title="Town limit reached">{{ pro_sub.extras }}/{{ pro_sub.max_extras }} towns used</button>
     {% else %}
     <button type="button" class="btn" id="add-town-btn">＋ Add Extra Town</button>
@@ -90,7 +92,7 @@
 
 <div class="card">
   <h2>Subscription</h2>
-  <p><span class="pill">{{ pro_sub.plan }}</span> <span class="muted">{{ pro_sub.status }}</span></p>
+  <p><span class="pill">{{ pro_sub.plan }}</span> <span class="muted">{{ pro_sub.status }}</span>{% if is_founder %} <span class="pill" title="TownsLine founder — backed the project from the start">Founder</span>{% endif %}</p>
   <p>{% if pro_sub.status == 'active' %}Renews{% else %}Expired{% endif %} {{ pro_sub.expiry_str }}</p>
   <p>Towns: <strong>{{ pro_sub.extras + 1 }}</strong> of {{ pro_sub.max_towns }} <span class="muted">(main + {{ pro_sub.extras }} of {{ pro_sub.max_extras }} extra)</span></p>
   <p class="muted small">To renew, reply to the renewal email.</p>
@@ -213,6 +215,10 @@
     <label class="check">
       <input type="checkbox" name="notify_enabled" value="1"{% if settings.get('notify_enabled') %} checked{% endif %}>
       Show the unread-stories count in the header
+    </label>
+    <label class="check">
+      <input type="checkbox" name="digest_enabled" value="1"{% if settings.get('digest_enabled', 1) %} checked{% endif %}>
+      Email me a digest of unread stories (weekly for Pro, daily for Elite)
     </label>
     <label>Stories per page
       <select name="story_limit">

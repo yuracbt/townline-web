@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Digest cancelled — TownsLine{% endblock %}
+{% block content %}
+<div class="card" style="text-align:center; padding: 60px 30px;">
+  <h1>Digest cancelled</h1>
+  <p class="muted">You won't get digest emails anymore. Your news is still
+  waiting for you any time.</p>
+  <p><a href="{{ url_for('dashboard') }}">Back to your news</a></p>
+</div>
+{% endblock %}

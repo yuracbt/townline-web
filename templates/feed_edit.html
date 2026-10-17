@@ -6,6 +6,7 @@
   <form method="post" id="feed-edit-form">
     <label>Name
       <input name="name" value="{{ feed['name']|e }}" placeholder="e.g. Airdrie Library">
+      <span class="muted small">(leave it blank and the name will be pulled from the feed)</span>
     </label>
     <label>Feed URL
       <input name="url" type="url" value="{{ feed['url']|e }}" required>
@@ -13,10 +14,10 @@
     {% if pro_enabled %}
     <label>Town
       <select name="town_slug">
-        <option value="">— untagged (main town) —</option>
-        {% for t in towns %}
-        <option value="{{ t.town_slug }}"{% if (feed['town_slug'] or '') == t.town_slug %} selected{% endif %}>{{ t.town_name }}{% if t.is_main %} (main){% endif %}</option>
-        {% endfor %}
+        <option value="">Main town</option>
+        {% for t in towns %}{% if not t.is_main %}
+        <option value="{{ t.town_slug }}"{% if (feed['town_slug'] or '') == t.town_slug %} selected{% endif %}>{{ t.town_name }}</option>
+        {% endif %}{% endfor %}
       </select>
     </label>
     {% endif %}

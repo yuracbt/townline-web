@@ -629,6 +629,15 @@ def pro_extra_limit(plan):
     return PRO_EXTRA_LIMITS.get(plan or "free", 0)
 
 
+def min_scan_interval(user):
+    """Minimum background-scan interval (minutes) by plan, closest to
+    the promised tiers: free 60, pro 15, elite 5."""
+    status, plan, _ = pro_status(user)
+    if status == "active":
+        return 5 if plan == "elite" else 15
+    return 60
+
+
 def pro_status(user):
     """Subscription status for a user row/dict.
 
@@ -880,9 +889,8 @@ def make_main_town(user_id, town_id):
 
 
 def remove_user_town(user_id, town_id):
-    """Remove an extra town from a user's list. The main town can never
-    be removed. The town's seeded feeds keep their stories but revert
-    to untagged (main-town) attribution, matching legacy feeds.
+    """Remove an extra town and EVERYTHING in it: its feeds, those
+    feeds' stories, and its places. The main town can never be removed.
     Returns (ok, message)."""
     db = get_db()
     row = db.execute("SELECT * FROM user_towns WHERE id = ? AND user_id = ?",
@@ -891,11 +899,38 @@ def remove_user_town(user_id, town_id):
         return False, "Town not found."
     if row["is_main"]:
         return False, "The main town can't be removed."
-    db.execute("UPDATE feeds SET town_slug = '' WHERE user_id = ? "
-               "AND town_slug = ?", (user_id, row["town_slug"]))
+    slug = row["town_slug"]
+    feed_ids = [r["id"] for r in db.execute(
+        "SELECT id FROM feeds WHERE user_id = ? AND town_slug = ?",
+        (user_id, slug)).fetchall()]
+    if feed_ids:
+        db.execute(
+            "DELETE FROM stories WHERE user_id = ? AND feed_id IN (%s)"
+            % ",".join("?" * len(feed_ids)), (user_id, *feed_ids))
+        db.execute("DELETE FROM feeds WHERE user_id = ? AND town_slug = ?",
+                   (user_id, slug))
+    db.execute("DELETE FROM places WHERE user_id = ? AND town_slug = ?",
+               (user_id, slug))
     db.execute("DELETE FROM user_towns WHERE id = ?", (town_id,))
     db.commit()
-    return True, f"Removed {row['town_name']}."
+    return True, f"Removed {row['town_name']} and everything in it."
+
+
+def town_item_counts(user_id, town_slug):
+    """(feeds, stories, places) counts for a town — for the removal
+    warning dialog."""
+    db = get_db()
+    n_feeds = db.execute(
+        "SELECT COUNT(*) c FROM feeds WHERE user_id = ? AND town_slug = ?",
+        (user_id, town_slug)).fetchone()["c"]
+    n_stories = db.execute(
+        "SELECT COUNT(*) c FROM stories s JOIN feeds f ON f.id = s.feed_id "
+        "WHERE s.user_id = ? AND f.town_slug = ?",
+        (user_id, town_slug)).fetchone()["c"]
+    n_places = db.execute(
+        "SELECT COUNT(*) c FROM places WHERE user_id = ? AND town_slug = ?",
+        (user_id, town_slug)).fetchone()["c"]
+    return n_feeds, n_stories, n_places
 
 
 def send_pro_renewal_notices():
@@ -930,6 +965,65 @@ def send_pro_renewal_notices():
             db.execute("UPDATE users SET pro_notice_sent_for = "
                        "pro_expires_at WHERE id = ?", (d["id"],))
     db.commit()
+
+
+def send_due_digests():
+    """Email digests to active subscribers: daily for Elite, weekly for
+    Pro (closest to the promised tiers). Idempotent via
+    settings.digest_last_sent. Skips users with digests off, lapsed
+    plans, or no unread stories. Email failure never breaks the loop."""
+    db = get_db()
+    now = int(time.time())
+    for u in db.execute(
+            "SELECT u.id, u.username, u.email, u.pro_plan, u.pro_expires_at, "
+            "s.digest_last_sent, s.digest_enabled "
+            "FROM users u JOIN settings s ON s.user_id = u.id "
+            "WHERE u.pro_plan IN ('pro','elite') AND u.email != ''"
+    ).fetchall():
+        plan = u["pro_plan"]
+        if (u["pro_expires_at"] or 0) <= now:
+            continue  # lapsed: no digest
+        if not (u["digest_enabled"] if u["digest_enabled"] is not None
+                else 1):
+            continue
+        due_every = 86400 if plan == "elite" else 7 * 86400
+        if now - (u["digest_last_sent"] or 0) < due_every:
+            continue
+        stories = db.execute(
+            "SELECT s.title, s.url, f.name AS feed_name, "
+            "COALESCE(f.town_slug,'') AS ftown "
+            "FROM stories s LEFT JOIN feeds f ON f.id = s.feed_id "
+            "WHERE s.user_id = ? AND s.is_read = 0 "
+            "ORDER BY s.published DESC LIMIT 10",
+            (u["id"],)).fetchall()
+        if not stories:
+            continue
+        names = {t["town_slug"]: t["town_name"] for t in db.execute(
+            "SELECT town_slug, town_name FROM user_towns WHERE user_id = ?",
+            (u["id"],)).fetchall()}
+        lines = []
+        for st in stories:
+            town = names.get(st["ftown"], "")
+            lines.append(f"{'[' + town + '] ' if town else ''}"
+                         f"{st['title']}\n{st['url']}")
+        kind = "daily" if plan == "elite" else "weekly"
+        body = (
+            f"Hi {u['username']},\n\n"
+            f"Your {kind} TownsLine digest — {len(stories)} unread "
+            f"{'story' if len(stories) == 1 else 'stories'}:\n\n"
+            + "\n\n".join(lines) +
+            "\n\nRead them all at https://townsline.com/\n"
+            "Turn off digests any time in Settings → Notifications.\n\n"
+            "— TownsLine"
+        )
+        try:
+            ok = send_email(u["email"], "Your TownsLine digest", body)
+        except Exception:  # noqa: BLE001 - digest is non-fatal
+            ok = False
+        if ok:
+            db.execute("UPDATE settings SET digest_last_sent = ? "
+                       "WHERE user_id = ?", (now, u["id"]))
+            db.commit()
 
 
 def send_renewal_notices():
@@ -968,13 +1062,15 @@ def send_renewal_notices():
 
 
 def renewal_loop():
-    """Daemon: check renewal notices + auto-pause overdue sponsors hourly
-    (both are idempotent, so repeats and restarts are harmless)."""
+    """Daemon: check renewal notices + digests + auto-pause overdue
+    sponsors hourly (all are idempotent, so repeats and restarts are
+    harmless)."""
     while True:
         try:
             with app.app_context():
                 send_renewal_notices()
                 send_pro_renewal_notices()
+                send_due_digests()
                 auto_pause_overdue_sponsors()
         except Exception as e:  # noqa: BLE001 - background job never dies
             app.logger.warning("renewal notices failed: %s", e)
@@ -1209,6 +1305,11 @@ def init_db():
         "ALTER TABLE feeds ADD COLUMN show_all INTEGER DEFAULT 0",
         "ALTER TABLE settings ADD COLUMN pro_town_filter TEXT DEFAULT 'all'",
         "ALTER TABLE places ADD COLUMN town_slug TEXT DEFAULT ''",
+        # Email digests (G1): daily for Elite, weekly for Pro.
+        "ALTER TABLE settings ADD COLUMN digest_last_sent INTEGER DEFAULT 0",
+        "ALTER TABLE settings ADD COLUMN digest_enabled INTEGER DEFAULT 1",
+        # Founding badge (G4): Kickstarter founders and friends of the project.
+        "ALTER TABLE users ADD COLUMN is_founder INTEGER DEFAULT 0",
     ):
         try:
             db.execute(ddl)
@@ -1536,13 +1637,18 @@ def pro_required(view):
 @app.context_processor
 def inject_admin():
     is_admin = False
+    is_founder = False
     theme = "light"
     uid = session.get("user_id")
     if uid:
         db = get_db()
-        row = db.execute("SELECT username FROM users WHERE id = ?",
+        row = db.execute("SELECT username, is_founder FROM users WHERE id = ?",
                          (uid,)).fetchone()
         is_admin = bool(row and row["username"] == ADMIN_USERNAME)
+        try:
+            is_founder = bool(row and row["is_founder"])
+        except (IndexError, KeyError):
+            is_founder = False
         trow = db.execute("SELECT theme FROM settings WHERE user_id = ?",
                           (uid,)).fetchone()
         if trow and trow["theme"] in ("light", "dark"):
@@ -1552,7 +1658,7 @@ def inject_admin():
             os.path.join(BASE_DIR, "static", "style.css")))
     except OSError:
         css_version = 0
-    return {"is_admin": is_admin, "theme": theme,
+    return {"is_admin": is_admin, "is_founder": is_founder, "theme": theme,
             "css_version": css_version}
 
 
@@ -2245,7 +2351,16 @@ def scanner_loop():
                     "WHERE user_id = ?", (u["id"],)).fetchone()
                 if not s:
                     continue
-                interval = max(5, s["scan_interval_min"] or 240) * 60
+                # Plan floor on scan frequency: free 60 min, pro 15, elite 5.
+                prow = db.execute(
+                    "SELECT pro_plan, pro_expires_at FROM users WHERE id = ?",
+                    (u["id"],)).fetchone()
+                pplan = (prow["pro_plan"] or "free") if prow else "free"
+                pexp = int(prow["pro_expires_at"] or 0) if prow else 0
+                pactive = pplan in ("pro", "elite") and pexp > now
+                floor = 5 if (pactive and pplan == "elite") else \
+                    (15 if pactive else 60)
+                interval = max(floor, s["scan_interval_min"] or 240) * 60
                 if now - (s["last_scan"] or 0) >= interval:
                     db.close()  # scan_user opens its own connection
                     scan_user(u["id"])
@@ -3180,6 +3295,28 @@ def admin_pro_revoke(uid):
     return redirect(url_for("admin_pro_detail", uid=uid))
 
 
+@app.route("/admin/pro/<int:uid>/founder", methods=["POST"])
+@login_required
+@admin_required
+def admin_pro_founder(uid):
+    """Toggle the founding badge (Elite perk: Kickstarter founders)."""
+    db = get_db()
+    row = db.execute("SELECT is_founder FROM users WHERE id = ?",
+                     (uid,)).fetchone()
+    if not row:
+        flash("User not found.")
+        return redirect(url_for("admin_pro"))
+    try:
+        cur = 1 if row["is_founder"] else 0
+    except (IndexError, KeyError):
+        cur = 0
+    db.execute("UPDATE users SET is_founder = ? WHERE id = ?",
+               (1 - cur, uid))
+    db.commit()
+    flash("Founder badge " + ("granted." if cur == 0 else "removed."))
+    return redirect(url_for("admin_pro_detail", uid=uid))
+
+
 def _opt_float(v):
     try:
         return float(v) if v not in (None, "") else None
@@ -3752,10 +3889,29 @@ def clear_category():
 @app.route("/story/<int:sid>/save")
 @login_required
 def toggle_save(sid):
+    user = current_user()
     db = get_db()
+    row = db.execute(
+        "SELECT is_saved FROM stories WHERE id = ? AND user_id = ?",
+        (sid, user["id"])).fetchone()
+    if row and not row["is_saved"]:
+        # Saved-stories cap by plan (closest to promise): free 100,
+        # pro 1,000, elite unlimited. Existing saves are never deleted.
+        status, plan, _ = pro_status(user)
+        limit = (None if (status == "active" and plan == "elite")
+                 else (1000 if status == "active" else 100))
+        if limit is not None:
+            n = db.execute(
+                "SELECT COUNT(*) c FROM stories "
+                "WHERE user_id = ? AND is_saved = 1",
+                (user["id"],)).fetchone()["c"]
+            if n >= limit:
+                flash(f"Saved stories limit reached ({limit}) — "
+                      f"remove some to save more.")
+                return redirect(request.referrer or url_for("dashboard"))
     db.execute(
         "UPDATE stories SET is_saved = 1 - is_saved WHERE id = ? AND user_id = ?",
-        (sid, session["user_id"]),
+        (sid, user["id"]),
     )
     db.commit()
     return redirect(request.referrer or url_for("dashboard"))
@@ -4028,9 +4184,17 @@ def pro_town_scan_feeds(user_id, slug):
 @pro_required
 def scan_town():
     """Scan only one town's feeds (the "Scan {Town}" button on the
-    Settings feeds card)."""
+    Settings feeds card). Lapsed plans are limited to the main town,
+    like the tiles."""
     user = current_user()
     slug = (request.form.get("town") or "").strip()
+    status, _, _ = pro_status(user)
+    if status != "active":
+        main_slug = next((t["town_slug"] for t in get_user_towns(user["id"])
+                          if t["is_main"]), "")
+        if slug != main_slug:
+            flash("That town is greyed until the subscription is renewed.")
+            return redirect(url_for("settings_page") + "#feeds")
     t, ids = pro_town_scan_feeds(user["id"], slug)
     if not t:
         flash("Town not found.")
@@ -4278,7 +4442,10 @@ def settings_page():
     db = get_db()
     if request.method == "POST":
         interval = int(request.form.get("scan_interval_min", 240))
+        # Plan floor: free 60 min, pro 15, elite 5 (closest to promise).
+        interval = max(min_scan_interval(user), interval)
         notify = 1 if request.form.get("notify_enabled") else 0
+        digest = 1 if request.form.get("digest_enabled") else 0
         raw_limit = request.form.get("story_limit", 200)
         try:
             story_limit = int(raw_limit)
@@ -4288,8 +4455,8 @@ def settings_page():
             story_limit = 200  # 0 = All: everything on one page
         db.execute(
             "UPDATE settings SET scan_interval_min = ?, notify_enabled = ?, "
-            "story_limit = ? WHERE user_id = ?",
-            (interval, notify, story_limit, user["id"]),
+            "digest_enabled = ?, story_limit = ? WHERE user_id = ?",
+            (interval, notify, digest, story_limit, user["id"]),
         )
         db.commit()
         return redirect(url_for("settings_page"))
@@ -4309,6 +4476,9 @@ def settings_page():
     pro_feed_tiles, pro_feed_filter, pro_feed_filter_name = [], "all", "All towns"
     if penabled:
         pro_towns = get_user_towns(user["id"])
+        for t in pro_towns:
+            t["n_feeds"], t["n_stories"], t["n_places"] = \
+                town_item_counts(user["id"], t["town_slug"])
         status, plan, expires_at = pro_status(user)
         pro_active = status == "active"
         extras = [t for t in pro_towns if not t["is_main"]]
@@ -4378,7 +4548,9 @@ def settings_page():
                    if t["town_slug"] == pro_feed_filter), None)
         pro_feed_filter_name = ft["town_name"] if ft else "All towns"
     return render_template("settings.html", user=user, settings=settings,
-                           intervals=INTERVALS, feeds=feed_rows,
+                           intervals=[iv for iv in INTERVALS
+                                      if iv[0] >= min_scan_interval(user)],
+                           feeds=feed_rows,
                            rel_time=rel_time, pro_enabled=penabled,
                            pro_towns=pro_towns,
                            pro_feed_groups=pro_feed_groups, pro_sub=pro_sub,

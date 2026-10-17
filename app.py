@@ -3474,9 +3474,35 @@ def dashboard():
             town_filter = saved
     # ----------------------------------------------------------------------
 
+    def town_scope():
+        """Feed-scope for the visible news line. Returns
+        (join_sql, clause_sql, params) — empty when the full line
+        applies (active plan on "All towns", or non-Pro users)."""
+        if not (penabled and (town_filter != "all" or not pro_active)):
+            return "", "", []
+        # Per-town line: this town's feeds plus feeds pinned "show with
+        # all" (active plans only). Legacy untagged feeds belong to the
+        # main town. Lapsed: main-town news only, even on "All towns" —
+        # no news from extra towns until the subscription is renewed.
+        trow = next((t for t in pro_towns if t["town_slug"] == town_filter),
+                    None)
+        if town_filter == "all" or (trow and trow["is_main"]):
+            fslugs = [main_slug_all, ""]
+        else:
+            fslugs = [town_filter]
+        clause = ("COALESCE(f.town_slug, '') IN (%s)" %
+                  ",".join("?" * len(fslugs)))
+        if pro_active and town_filter != "all":
+            clause = "(%s OR COALESCE(f.show_all, 0) = 1)" % clause
+        return "LEFT JOIN feeds f ON f.id = s.feed_id ", clause, fslugs
+
+    scope_join, scope_clause, scope_params = town_scope()
+    scope_and = (" AND " + scope_clause) if scope_clause else ""
+
     cats = [r["category"] for r in db.execute(
-        "SELECT DISTINCT category FROM stories WHERE user_id = ? "
-        "ORDER BY category", (user["id"],)).fetchall()]
+        "SELECT DISTINCT category FROM stories s " + scope_join +
+        "WHERE s.user_id = ?" + scope_and + " ORDER BY category",
+        [user["id"]] + scope_params).fetchall()]
     # Business is always a tile — sponsor news lives there even when the
     # user has no Business-category stories yet (otherwise the tile and
     # its Sponsored cards are unreachable: no chip to click).
@@ -3487,13 +3513,16 @@ def dashboard():
                   else ((2, c) if c in ("Sport", "Business") else (1, c)))
 
     unread_counts = {r["category"]: r["c"] for r in db.execute(
-        "SELECT category, COUNT(*) c FROM stories "
-        "WHERE user_id = ? AND is_read = 0 GROUP BY category",
-        (user["id"],)).fetchall()}
+        "SELECT s.category, COUNT(*) c FROM stories s " + scope_join +
+        "WHERE s.user_id = ? AND s.is_read = 0" + scope_and +
+        " GROUP BY s.category",
+        [user["id"]] + scope_params).fetchall()}
     unread_total = sum(unread_counts.values())
     unread_saved = db.execute(
-        "SELECT COUNT(*) c FROM stories WHERE user_id = ? AND is_read = 0 "
-        "AND is_saved = 1", (user["id"],)).fetchone()["c"]
+        "SELECT COUNT(*) c FROM stories s " + scope_join +
+        "WHERE s.user_id = ? AND s.is_read = 0 AND s.is_saved = 1" +
+        scope_and,
+        [user["id"]] + scope_params).fetchone()["c"]
     # Unread count for the category tile being viewed (None on "All").
     if active_cat == "Saved":
         cat_unread = unread_saved
@@ -3555,23 +3584,9 @@ def dashboard():
         params.append(active_cat)
     if unread_only:
         where += " AND s.is_read = 0"
-    if penabled and (town_filter != "all" or not pro_active):
-        # Per-town line: this town's feeds plus feeds pinned "show with
-        # all" (active plans only). Legacy untagged feeds belong to the
-        # main town. Lapsed: main-town news only, even on "All towns" —
-        # no news from extra towns until the subscription is renewed.
-        trow = next((t for t in pro_towns if t["town_slug"] == town_filter),
-                    None)
-        if town_filter == "all" or (trow and trow["is_main"]):
-            fslugs = [main_slug_all, ""]
-        else:
-            fslugs = [town_filter]
-        clause = ("COALESCE(f.town_slug, '') IN (%s)" %
-                  ",".join("?" * len(fslugs)))
-        params.extend(fslugs)
-        if pro_active and town_filter != "all":
-            clause = "(%s OR COALESCE(f.show_all, 0) = 1)" % clause
-        where += " AND " + clause
+    if scope_clause:
+        where += " AND " + scope_clause
+        params.extend(scope_params)
     base = ("SELECT s.*, f.name AS feed_name, "
             "COALESCE(f.town_slug, '') AS ftown FROM stories s "
             "LEFT JOIN feeds f ON f.id = s.feed_id " + where)
@@ -3794,6 +3809,19 @@ def api_suggestions():
         # town (the tile click persists pro_town_filter, shared with
         # the dashboard and feeds card).
         filt = (settings.get("pro_town_filter") or "all")
+        # The tile also passes its slug explicitly (?town=) — it wins
+        # over the stored filter so suggestions can't desync from the
+        # tile the user actually sees (e.g. after validation resets).
+        slug_param = (request.args.get("town") or "").strip()
+        if slug_param:
+            towns = get_user_towns(user["id"])
+            main_slug = next((t["town_slug"] for t in towns
+                              if t["is_main"]), "")
+            status_now, _, _ = pro_status(user)
+            if slug_param in ({t["town_slug"] for t in towns} | {"all"}) \
+               and (status_now == "active"
+                    or slug_param in ("all", main_slug)):
+                filt = slug_param
         if filt != "all":
             trow = next((t for t in get_user_towns(user["id"])
                          if t["town_slug"] == filt), None)
@@ -3846,6 +3874,53 @@ def api_suggestions():
         "town": town,
         "suggestions": working,
     })
+
+
+@app.route("/api/feeds/restore-defaults")
+@login_required
+def api_restore_defaults():
+    """The town's curated directory feeds that the user hasn't added —
+    the explicit 'get them back' action after removing defaults.
+    No liveness gate: these are curated, and per-feed errors show if
+    one is actually dead. The user picks which ones to re-add."""
+    user = current_user()
+    db = get_db()
+    settings = get_settings(user["id"])
+    town = settings.get("town_name", "")
+    state = settings.get("state", "")
+    country_code = settings.get("country_code", "")
+    if pro_enabled(user):
+        filt = (settings.get("pro_town_filter") or "all")
+        slug_param = (request.args.get("town") or "").strip()
+        if slug_param:
+            towns = get_user_towns(user["id"])
+            main_slug = next((t["town_slug"] for t in towns
+                              if t["is_main"]), "")
+            status_now, _, _ = pro_status(user)
+            if slug_param in ({t["town_slug"] for t in towns} | {"all"}) \
+               and (status_now == "active"
+                    or slug_param in ("all", main_slug)):
+                filt = slug_param
+        if filt != "all":
+            trow = next((t for t in get_user_towns(user["id"])
+                         if t["town_slug"] == filt), None)
+            if trow:
+                town = trow["town_name"]
+                entry = find_town_entry(trow["town_name"], trow.get("lat"),
+                                        trow.get("lon"))
+                state = (entry.get("region") if entry else "") or ""
+                country_code = (entry.get("country_code") if entry
+                                else "") or ""
+    have = {norm_url(r["url"]) for r in
+            db.execute("SELECT url FROM feeds WHERE user_id = ?",
+                       (user["id"],)).fetchall()}
+    out, seen = [], set()
+    for f in suggested_for_town(town, state, country_code):
+        norm = norm_url(f["url"])
+        if norm and norm not in seen and norm not in have:
+            seen.add(norm)
+            out.append({"name": f["name"], "url": f["url"].strip()})
+    return jsonify({"town": town, "defaults": out})
 
 
 @app.route("/feeds/add", methods=["POST"])
@@ -4423,9 +4498,11 @@ def set_location():
 @app.route("/settings/locate", methods=["POST"])
 @login_required
 def locate():
-    """'Scan near me': set the town from the browser's geolocation
-    (lat/lon) via Nominatim reverse-geocoding, then seed + scan like a
-    manual location pick."""
+    """'Scan near me': the nearby town becomes the user's main town —
+    user_towns, settings and freshly seeded feeds (tagged with the new
+    town's slug so stories attribute correctly), then an immediate scan.
+    Reuses the main row in place, so plan town limits are never
+    exceeded and the old town's feeds keep their attribution."""
     user = current_user()
     data = request.get_json(force=True, silent=True) or {}
     lat, lon = data.get("lat"), data.get("lon")
@@ -4452,15 +4529,60 @@ def locate():
     state = addr.get("state", "")
     country_code = addr.get("country_code", "")
     db = get_db()
-    db.execute(
-        "UPDATE settings SET town_name = ?, lat = ?, lon = ?, state = ?, "
-        "country_code = ? WHERE user_id = ?",
-        (town, float(lat), float(lon), state, country_code, user["id"]),
-    )
-    db.commit()
+    slug = town_slug_for(town)
+    towns = get_user_towns(user["id"])
+    existing = next((t for t in towns if t["town_slug"] == slug), None)
+    if existing:
+        if not existing["is_main"]:
+            # Already in the list — just make it the main town (pins
+            # legacy feeds to the old main, syncs settings).
+            make_main_town(user["id"], existing["id"])
+        db.execute("UPDATE settings SET state = ?, country_code = ? "
+                   "WHERE user_id = ?",
+                   (state, country_code, user["id"]))
+        db.commit()
+    else:
+        # Repurpose the main row: pin legacy untagged feeds/places to
+        # the outgoing main first (same as make-main), then the nearby
+        # town takes over as main.
+        main = next((t for t in towns if t["is_main"]), None)
+        if main and main["town_slug"]:
+            db.execute("UPDATE feeds SET town_slug = ? WHERE user_id = ? "
+                       "AND COALESCE(town_slug, '') = ''",
+                       (main["town_slug"], user["id"]))
+            db.execute("UPDATE places SET town_slug = ? WHERE user_id = ? "
+                       "AND COALESCE(town_slug, '') = ''",
+                       (main["town_slug"], user["id"]))
+        if main:
+            db.execute("UPDATE user_towns SET town_name = ?, town_slug = ?, "
+                       "lat = ?, lon = ? WHERE id = ?",
+                       (town, slug, float(lat), float(lon), main["id"]))
+        else:
+            db.execute("INSERT INTO user_towns (user_id, town_name, "
+                       "town_slug, lat, lon, is_main, sort_order, "
+                       "created_at) VALUES (?,?,?,?,?,1,0,?)",
+                       (user["id"], town, slug, float(lat), float(lon),
+                        int(time.time())))
+        db.execute(
+            "UPDATE settings SET town_name = ?, lat = ?, lon = ?, "
+            "state = ?, country_code = ? WHERE user_id = ?",
+            (town, float(lat), float(lon), state, country_code,
+             user["id"]),
+        )
+        db.commit()
+    # Seed the town's default feeds, tagging the fresh rows so the news
+    # line attributes their stories to the nearby town.
+    before = {r["id"] for r in db.execute(
+        "SELECT id FROM feeds WHERE user_id = ?", (user["id"],))}
     seed_default_feeds(user["id"], town, state=state,
                        country_code=country_code,
                        lat=float(lat), lon=float(lon))
+    for r in db.execute("SELECT id FROM feeds WHERE user_id = ?",
+                        (user["id"],)):
+        if r["id"] not in before:
+            db.execute("UPDATE feeds SET town_slug = ? WHERE id = ?",
+                       (slug, r["id"]))
+    db.commit()
     threading.Thread(target=scan_user, args=(user["id"],),
                      daemon=True).start()
     return jsonify({"ok": True, "town": town})

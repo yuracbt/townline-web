@@ -5,7 +5,7 @@
 <p class="muted">Local spots for {{ settings.get('town_name') or 'your town' }} — theatres, galleries, libraries, universities and more. Saved places open in a new tab.</p>
 
 {% if sponsors %}
-<h2>Featured local businesses in {{ settings.get('town_name') or 'your town' }}</h2>
+<h2>Featured local businesses in {{ sponsor_town_name }}</h2>
 <ul class="feedlist">
 {% for s in sponsors %}
   <li class="feed">

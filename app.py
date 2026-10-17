@@ -60,6 +60,28 @@ def _www_to_apex():
             target += "?" + qs
         return redirect(target, code=301)
 
+
+@app.before_request
+def _track_activity():
+    """Record last user activity (throttled) for smart digest sending."""
+    uid = session.get("user_id")
+    if not uid:
+        return
+    try:
+        db = get_db()
+        row = db.execute("SELECT last_active FROM users WHERE id = ?",
+                         (uid,)).fetchone()
+        if row is None:
+            return
+        now = int(time.time())
+        if now - (row["last_active"] or 0) > 900:  # at most one write / 15 min
+            db.execute("UPDATE users SET last_active = ? WHERE id = ?",
+                       (now, uid))
+            db.commit()
+    except Exception:
+        pass  # activity tracking never breaks a request
+
+
 UA = "TownsLineWeb/1.0"
 FEED_TIMEOUT = 10  # seconds; be polite to other people's servers
 
@@ -977,6 +999,91 @@ def send_pro_renewal_notices():
     db.commit()
 
 
+# Digest smart-send: morning window in UTC (12-16 UTC = 6-10am MDT).
+DIGEST_WINDOW_START = 12
+DIGEST_WINDOW_END = 16
+# Skip the digest when the user was on the site recently (Elite 12h, Pro 24h).
+DIGEST_ACTIVE_SKIP = {"elite": 12 * 3600, "pro": 24 * 3600}
+
+
+def digest_unsub_token(uid):
+    """Signed one-click unsubscribe token for digest emails."""
+    from itsdangerous import URLSafeSerializer
+    return URLSafeSerializer(app.secret_key,
+                             salt="digest-unsubscribe").dumps(uid)
+
+
+def plan_features(plan):
+    """Human-readable feature summary for a paid plan (welcome email)."""
+    if plan == "elite":
+        return {"name": "Elite", "towns": "10 extra towns",
+                "scan": "every 5 minutes", "digest": "daily",
+                "saved": "unlimited"}
+    if plan == "pro":
+        return {"name": "Pro", "towns": "5 extra towns",
+                "scan": "every 15 minutes", "digest": "weekly",
+                "saved": "1,000"}
+    return {"name": "Free", "towns": "1 town", "scan": "every 60 minutes",
+            "digest": "none", "saved": "100"}
+
+
+def send_plan_welcome(user_id, plan, expires_at):
+    """One-time welcome email when Pro/Elite is granted. Non-fatal."""
+    db = get_db()
+    u = db.execute("SELECT username, email FROM users WHERE id = ?",
+                   (user_id,)).fetchone()
+    if not u or not u["email"]:
+        return
+    f = plan_features(plan)
+    exp = datetime.fromtimestamp(expires_at,
+                                 tz=timezone.utc).strftime("%B %d, %Y")
+    site = SITE_URL.rstrip("/")
+    unsub = site + "/digest/unsubscribe?token=" + digest_unsub_token(user_id)
+    body = (
+        f"Hi {u['username']},\n\n"
+        f"Welcome to TownsLine {f['name']}! Here's what you've got "
+        f"until {exp}:\n\n"
+        "\u2022 Towns: your main town + " + f['towns'] + " \u2014 every town "
+        "you love, in one inbox\n"
+        "\u2022 Scans: your feeds are checked " + f['scan'] + "\n"
+        "\u2022 Digest: a " + f['digest'] + " morning email with your unread "
+        "stories\n"
+        "\u2022 Saved stories: " + f['saved'] + "\n\n"
+        "YOUR DIGEST, YOUR RULES\n"
+        "The " + f['digest'] + " digest lands in the morning and only when you "
+        "haven't checked TownsLine recently \u2014 no noise while you're "
+        "active.\n\n"
+        "Change it any time (Settings \u2192 Scanning):\n"
+        f"{site}/settings#scanning\n\n"
+        "Or cancel it in one click, no login needed:\n"
+        f"{unsub}\n\n"
+        "Add extra towns from Settings \u2192 Your town, and happy "
+        "reading.\n\n"
+        "\u2014 TownsLine"
+    )
+    try:
+        send_email(u["email"], f"Welcome to TownsLine {f['name']}", body)
+    except Exception:
+        pass  # welcome mail is non-fatal
+
+
+@app.route("/digest/unsubscribe")
+def digest_unsubscribe():
+    """One-click digest cancel from the email - no login needed."""
+    token = request.args.get("token", "")
+    try:
+        from itsdangerous import URLSafeSerializer
+        uid = URLSafeSerializer(app.secret_key,
+                                salt="digest-unsubscribe").loads(token)
+    except Exception:
+        return render_template("404.html"), 404
+    db = get_db()
+    db.execute("UPDATE settings SET digest_enabled = 0 WHERE user_id = ?",
+               (uid,))
+    db.commit()
+    return render_template("digest_unsubscribed.html")
+
+
 def send_due_digests():
     """Email digests to active subscribers: daily for Elite, weekly for
     Pro (closest to the promised tiers). Idempotent via
@@ -986,7 +1093,7 @@ def send_due_digests():
     now = int(time.time())
     for u in db.execute(
             "SELECT u.id, u.username, u.email, u.pro_plan, u.pro_expires_at, "
-            "s.digest_last_sent, s.digest_enabled "
+            "s.digest_last_sent, s.digest_enabled, u.last_active "
             "FROM users u JOIN settings s ON s.user_id = u.id "
             "WHERE u.pro_plan IN ('pro','elite') AND u.email != ''"
     ).fetchall():
@@ -998,6 +1105,15 @@ def send_due_digests():
             continue
         due_every = 86400 if plan == "elite" else 7 * 86400
         if now - (u["digest_last_sent"] or 0) < due_every:
+            continue
+        # Morning window: a digest due overnight waits for 6-10am MDT.
+        # The hourly loop retries, so nothing is lost.
+        if not (DIGEST_WINDOW_START
+                <= datetime.now(timezone.utc).hour < DIGEST_WINDOW_END):
+            continue
+        # Skip users who were recently on the site: the digest is for
+        # bringing people back, not for nagging active readers.
+        if now - (u["last_active"] or 0) < DIGEST_ACTIVE_SKIP[plan]:
             continue
         stories = db.execute(
             "SELECT s.title, s.url, f.name AS feed_name, "
@@ -1023,7 +1139,11 @@ def send_due_digests():
             f"{'story' if len(stories) == 1 else 'stories'}:\n\n"
             + "\n\n".join(lines) +
             "\n\nRead them all at https://townsline.com/\n"
-            "Turn off digests any time in Settings → Scanning.\n\n"
+            "Change your digest any time: "
+            + SITE_URL.rstrip("/") + "/settings#scanning\n"
+            "One-click cancel (no login needed): "
+            + SITE_URL.rstrip("/") + "/digest/unsubscribe?token="
+            + digest_unsub_token(u["id"]) + "\n\n"
             "— TownsLine"
         )
         try:
@@ -1320,6 +1440,9 @@ def init_db():
         "ALTER TABLE settings ADD COLUMN digest_enabled INTEGER DEFAULT 1",
         # Founding badge (G4): Kickstarter founders and friends of the project.
         "ALTER TABLE users ADD COLUMN is_founder INTEGER DEFAULT 0",
+        # Digest smart-send: last user activity, so digests only go out
+        # when the user has been away.
+        "ALTER TABLE users ADD COLUMN last_active INTEGER DEFAULT 0",
     ):
         try:
             db.execute(ddl)
@@ -3261,10 +3384,17 @@ def admin_pro_grant(uid):
         if expires_at <= int(time.time()):
             flash("Expiry must be in the future.")
             return redirect(url_for("admin_pro_detail", uid=uid))
+    prev_plan = user["pro_plan"] or "free"
+    prev_exp = user["pro_expires_at"] or 0
     db.execute("UPDATE users SET pro_plan = ?, pro_expires_at = ?, "
                "pro_notice_sent_for = 0 WHERE id = ?",
                (plan, expires_at, uid))
     db.commit()
+    # One-time welcome email: new grant, reactivation, or upgrade - but not
+    # a same-plan date fix (avoids flooding the user).
+    if plan in ("pro", "elite") and (prev_plan != plan
+                                    or prev_exp <= int(time.time())):
+        send_plan_welcome(uid, plan, expires_at)
     flash(f"Granted {plan.capitalize()}"
           + (f" until {date_s}." if expires_at else "."))
     return redirect(url_for("admin_pro_detail", uid=uid))

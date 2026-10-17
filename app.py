@@ -4079,42 +4079,17 @@ def api_restore_defaults():
     return jsonify({"town": town, "defaults": out})
 
 
-@app.route("/api/feeds/validate")
-@login_required
-def api_feeds_validate():
-    """Check a feed URL *before* adding: fetches it, parses it, reports
-    the feed's title and item count — or why it's not usable. Also
-    reports if the URL is already in the user's list (and where)."""
-    url = (request.args.get("url") or "").strip()
-    if not url:
-        return jsonify({"ok": False, "error": "Enter a URL first."})
-    if not re.match(r"^https?://", url, re.IGNORECASE):
-        return jsonify({"ok": False,
-                        "error": "The URL must start with http:// or https://."})
-    db = get_db()
-    uid = session["user_id"]
-    norm = norm_url(url)
-    existing = None
-    for r in db.execute("SELECT name, url, town_slug FROM feeds "
-                        "WHERE user_id = ?", (uid,)):
-        if norm_url(r["url"]) == norm:
-            town_names = {t["town_slug"]: t["town_name"]
-                          for t in get_user_towns(uid)}
-            existing = {"name": r["name"],
-                        "town": town_names.get(r["town_slug"] or "", "")}
-            break
+def check_feed_url(url):
+    """Fetch and parse a feed URL. Returns (ok, title, items, error)."""
     try:
         parsed = fetch_feed(url)
     except Exception as e:
-        return jsonify({"ok": False, "existing": existing,
-                        "error": f"Could not fetch the URL ({str(e)[:120]})."})
+        return False, "", 0, f"Could not fetch the URL ({str(e)[:120]})."
     if getattr(parsed, "bozo", False) and not parsed.entries:
-        return jsonify({"ok": False, "existing": existing,
-                        "error": "The URL doesn't look like a feed — "
-                                 "nothing parseable found."})
+        return False, "", 0, ("That URL doesn't look like a feed — "
+                               "nothing parseable found.")
     title = (parsed.feed.get("title") or "").strip()
-    return jsonify({"ok": True, "title": title,
-                    "items": len(parsed.entries), "existing": existing})
+    return True, title, len(parsed.entries), ""
 
 
 @app.route("/feeds/add", methods=["POST"])
@@ -4125,51 +4100,72 @@ def feed_add():
     added = False
     duplicate = False
     dup_info = None
+    add_error = None
     if url:
         if not name:
             name = url
-        db = get_db()
-        have = {}
-        for r in db.execute("SELECT id, name, url, town_slug, enabled "
-                            "FROM feeds WHERE user_id = ?",
-                            (session["user_id"],)).fetchall():
-            have[norm_url(r["url"])] = dict(r)
-        dup = have.get(norm_url(url))
-        if dup:
-            duplicate = True
-            town_names = {t["town_slug"]: t["town_name"]
-                          for t in get_user_towns(session["user_id"])}
-            dup_info = {
-                "name": dup["name"],
-                "town": town_names.get(dup["town_slug"] or "", ""),
-                "enabled": bool(dup["enabled"]),
-            }
+        if not re.match(r"^https?://", url, re.IGNORECASE):
+            # Bad URL: back to the form with the input preserved and an
+            # inline warning (not a top flash).
+            add_error = "That doesn't look like a URL — it must start " \
+                        "with http:// or https://. Nothing was added."
         else:
-            # Pro: a feed added while a town tile is selected is tagged
-            # with that town (validated against the user's own towns).
-            tslug = (request.form.get("town_slug") or "").strip()
-            if tslug and pro_enabled(current_user()):
-                slugs = {t["town_slug"]
-                         for t in get_user_towns(session["user_id"])}
-                if tslug not in slugs:
-                    tslug = ""
+            db = get_db()
+            have = {}
+            for r in db.execute("SELECT id, name, url, town_slug, enabled "
+                                "FROM feeds WHERE user_id = ?",
+                                (session["user_id"],)).fetchall():
+                have[norm_url(r["url"])] = dict(r)
+            dup = have.get(norm_url(url))
+            if dup:
+                duplicate = True
+                town_names = {t["town_slug"]: t["town_name"]
+                              for t in get_user_towns(session["user_id"])}
+                dup_info = {
+                    "name": dup["name"],
+                    "town": town_names.get(dup["town_slug"] or "", ""),
+                    "enabled": bool(dup["enabled"]),
+                }
             else:
-                tslug = ""
-            db.execute(
-                "INSERT INTO feeds (user_id, name, url, enabled, town_slug) "
-                "VALUES (?,?,?,1,?)",
-                (session["user_id"], name, url, tslug or None),
-            )
-            db.commit()
-            added = True
-            threading.Thread(target=scan_user, args=(session["user_id"],),
-                             daemon=True).start()
+                # The URL must actually serve a feed before we add it.
+                ok, title, n, err = check_feed_url(url)
+                if not ok:
+                    add_error = f"{err} Nothing was added — fix the URL " \
+                                f"and try again."
+                else:
+                    # Pro: a feed added while a town tile is selected is tagged
+                    # with that town (validated against the user's own towns).
+                    tslug = (request.form.get("town_slug") or "").strip()
+                    if tslug and pro_enabled(current_user()):
+                        slugs = {t["town_slug"]
+                                 for t in get_user_towns(session["user_id"])}
+                        if tslug not in slugs:
+                            tslug = ""
+                    else:
+                        tslug = ""
+                    if not name or name == url:
+                        name = title or url
+                    db.execute(
+                        "INSERT INTO feeds (user_id, name, url, enabled, town_slug) "
+                        "VALUES (?,?,?,1,?)",
+                        (session["user_id"], name, url, tslug or None),
+                    )
+                    db.commit()
+                    added = True
+                    threading.Thread(target=scan_user, args=(session["user_id"],),
+                                     daemon=True).start()
     wants_json = (request.headers.get("X-Requested-With") == "fetch"
                   or "application/json" in request.headers.get("Accept", ""))
     if wants_json:
         return jsonify({"ok": added, "duplicate": duplicate,
                         "existing": dup_info if duplicate else None,
+                        "error": add_error,
                         "name": name, "url": url})
+    if add_error:
+        # Inline warning on the Add form, with the user's input preserved.
+        session["feed_add_error"] = add_error
+        session["feed_add_name"] = request.form.get("name", "").strip()
+        session["feed_add_url"] = url
     if duplicate:
         where = f" ({dup_info['town']})" if dup_info["town"] else ""
         flash(f"That feed is already in your list as "
@@ -4230,15 +4226,9 @@ def feed_edit(fid):
                 flash(f"That URL is already in your list as “{r['name']}”.")
                 return redirect(url_for("feed_edit", fid=fid))
         # The URL must actually serve a feed before we save it.
-        try:
-            parsed = fetch_feed(url)
-            valid = not (getattr(parsed, "bozo", False)
-                         and not parsed.entries)
-        except Exception:
-            valid = False
-        if not valid:
-            flash("That URL doesn't look like a working feed — not saved. "
-                  "Use the Check button to see the error.")
+        ok, _, _, err = check_feed_url(url)
+        if not ok:
+            flash(f"{err} Not saved.")
             return redirect(url_for("feed_edit", fid=fid))
         tslug = (request.form.get("town_slug") or "").strip()
         if pro_enabled(user) and tslug:
@@ -4664,6 +4654,9 @@ def settings_page():
                            intervals=[iv for iv in INTERVALS
                                       if iv[0] >= min_scan_interval(user)],
                            feeds=feed_rows,
+                           feed_add_error=session.pop("feed_add_error", None),
+                           feed_add_name=session.pop("feed_add_name", ""),
+                           feed_add_url=session.pop("feed_add_url", ""),
                            rel_time=rel_time, pro_enabled=penabled,
                            pro_towns=pro_towns,
                            pro_feed_groups=pro_feed_groups, pro_sub=pro_sub,

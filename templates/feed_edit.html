@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Edit feed — TownsLine{% endblock %}
+{% block content %}
+<h1>Edit feed</h1>
+<div class="card">
+  <form method="post" id="feed-edit-form">
+    <label>Name
+      <input name="name" value="{{ feed['name']|e }}" placeholder="e.g. Airdrie Library">
+    </label>
+    <label>Feed URL
+      <input name="url" type="url" id="feed-url" value="{{ feed['url']|e }}" required>
+    </label>
+    <p><button type="button" class="btn small" id="feed-check">Check URL</button>
+    <span class="muted small" id="feed-check-result"></span></p>
+    {% if pro_enabled %}
+    <label>Town
+      <select name="town_slug">
+        <option value="">— untagged (main town) —</option>
+        {% for t in towns %}
+        <option value="{{ t.town_slug }}"{% if (feed['town_slug'] or '') == t.town_slug %} selected{% endif %}>{{ t.town_name }}{% if t.is_main %} (main){% endif %}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    <label class="check">
+      <input type="checkbox" name="enabled" value="1"{% if feed['enabled'] %} checked{% endif %}>
+      Enabled
+    </label>
+    <div class="btnrow">
+      <button type="submit">Save</button>
+      <a class="btn ghost" href="{{ url_for('settings_page') }}#feeds">Cancel</a>
+    </div>
+  </form>
+</div>
+<script>
+document.getElementById('feed-check').addEventListener('click', async () => {
+  const url = document.getElementById('feed-url').value.trim();
+  const out = document.getElementById('feed-check-result');
+  out.textContent = 'Checking…';
+  out.className = 'muted small busy';
+  try {
+    const r = await fetch('{{ url_for("api_feeds_validate") }}?url=' + encodeURIComponent(url));
+    const d = await r.json();
+    out.classList.remove('busy');
+    if (d.ok) {
+      out.className = 'small ok';
+      out.textContent = '✓ Valid feed' + (d.title ? ': ' + d.title : '') + ' (' + d.items + ' items)' +
+        (d.existing ? ' — already in your list as “' + d.existing.name + '”' + (d.existing.town ? ' (' + d.existing.town + ')' : '') : '');
+    } else {
+      out.className = 'small error';
+      out.textContent = '✗ ' + (d.error || 'Not a valid feed.') +
+        (d.existing ? ' (Already in your list as “' + d.existing.name + '”' + (d.existing.town ? ' (' + d.existing.town + ')' : '') + ')' : '');
+    }
+  } catch (e) {
+    out.classList.remove('busy');
+    out.className = 'small error';
+    out.textContent = '✗ Could not check right now.';
+  }
+});
+</script>
+{% endblock %}

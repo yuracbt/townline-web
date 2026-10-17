@@ -120,7 +120,9 @@
         <form method="post" action="{{ url_for('feed_toggle', fid=f['id']) }}">
           <button type="submit" class="btn small">{{ 'Disable' if f['enabled'] else 'Enable' }}</button>
         </form>
-        <a class="btn small ghost" href="{{ url_for('feed_edit', fid=f['id']) }}">Edit</a>
+        <form method="get" action="{{ url_for('feed_edit', fid=f['id']) }}">
+          <button type="submit" class="btn small">Edit</button>
+        </form>
         <form method="post" action="{{ url_for('feed_delete', fid=f['id']) }}"
               onsubmit="return confirm('Remove this feed?')">
           <button type="submit" class="btn small danger">Remove</button>
@@ -173,7 +175,9 @@
         <form method="post" action="{{ url_for('feed_toggle', fid=f['id']) }}">
           <button type="submit" class="btn small">{{ 'Disable' if f['enabled'] else 'Enable' }}</button>
         </form>
-        <a class="btn small ghost" href="{{ url_for('feed_edit', fid=f['id']) }}">Edit</a>
+        <form method="get" action="{{ url_for('feed_edit', fid=f['id']) }}">
+          <button type="submit" class="btn small">Edit</button>
+        </form>
         <form method="post" action="{{ url_for('feed_delete', fid=f['id']) }}"
               onsubmit="return confirm('Remove this feed?')">
           <button type="submit" class="btn small danger">Remove</button>

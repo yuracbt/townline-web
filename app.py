@@ -3818,18 +3818,28 @@ def api_suggestions():
         seen.add(norm)
         candidates.append({"name": name, "url": url.strip(), "origin": origin})
 
-    for f in suggested_for_town(town, settings.get("state", ""),
-                                settings.get("country_code", "")):
+    for f in suggested_for_town(town, state, country_code):
         add_candidate(f["name"], f["url"], "directory")
     for f in discover_web_feeds(town):
         add_candidate(f["name"], f["url"], "web")
+
+    # Self-healing: if this town has no feeds at all, the curated
+    # directory feeds are offered unconditionally. A user who lost
+    # their feeds (old account, manual delete) shouldn't depend on a
+    # live network check from the server to get them back; if one is
+    # actually dead, the per-feed error display handles it.
+    slug = town_slug_for(town) if town else ""
+    town_has_feeds = bool(slug and db.execute(
+        "SELECT 1 FROM feeds WHERE user_id = ? AND town_slug = ? LIMIT 1",
+        (user["id"], slug)).fetchone())
 
     working = []
     seen_names = set()
     with ThreadPoolExecutor(max_workers=8) as pool:
         results = pool.map(is_working_feed, [c["url"] for c in candidates])
     for c, ok in zip(candidates, results):
-        if ok and c["name"] not in seen_names:
+        if (ok or (c["origin"] == "directory" and not town_has_feeds)) \
+                and c["name"] not in seen_names:
             seen_names.add(c["name"])
             working.append(c)
     return jsonify({

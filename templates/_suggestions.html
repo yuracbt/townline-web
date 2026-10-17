@@ -53,9 +53,11 @@ function makeFeedLi(f) {
       body: fd,
       headers: { 'X-Requested-With': 'fetch' }
     });
-    let dup = false, existing = null;
-    try { const j = await resp.json(); dup = j.duplicate === true; existing = j.existing || null; } catch (e) {}
-    if (dup && existing) {
+    let dup = false, existing = null, err = null;
+    try { const j = await resp.json(); dup = j.duplicate === true; existing = j.existing || null; err = j.error || null; } catch (e) {}
+    if (err && !dup) {
+      btn.textContent = '✗ ' + err.slice(0, 60);
+    } else if (dup && existing) {
       btn.textContent = '✓ Already in your feeds as “' + existing.name + '”' + (existing.town ? ' (' + existing.town + ')' : '');
     } else {
       btn.textContent = dup ? '✓ Already in your feeds' : '✓ Added — scanning now';

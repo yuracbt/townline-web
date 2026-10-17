@@ -95,6 +95,7 @@
   <p><span class="pill">{{ pro_sub.plan }}</span> <span class="muted">{{ pro_sub.status }}</span>{% if is_founder %} <span class="pill" title="TownsLine founder — backed the project from the start">Founder</span>{% endif %}</p>
   <p>{% if pro_sub.status == 'active' %}Renews{% else %}Expired{% endif %} {{ pro_sub.expiry_str }}</p>
   <p>Towns: <strong>{{ pro_sub.extras + 1 }}</strong> of {{ pro_sub.max_towns }} <span class="muted">(main + {{ pro_sub.extras }} of {{ pro_sub.max_extras }} extra)</span></p>
+  {% if pro_sub.status != 'active' %}<p class="muted small">While lapsed, the news line shows one town at a time — pick any town above. Your saved stories are always kept.</p>{% endif %}
   <p class="muted small">To renew, reply to the renewal email.</p>
 </div>
 {% endif %}
@@ -145,17 +146,23 @@
   </div>
   <div class="btnrow">
     {% if pro_feed_filter == 'all' %}
+    {% if pro_sub.status == 'active' %}
     <form class="inline-form" method="post" action="{{ url_for('scan_now') }}">
       <button type="submit">Scan now</button>
     </form>
+    {% else %}
+    <span class="muted small">Select a town above to scan its feeds.</span>
+    {% endif %}
     {% else %}
     <form class="inline-form" method="post" action="{{ url_for('scan_town') }}">
       <input type="hidden" name="town" value="{{ pro_feed_filter }}">
       <button type="submit">Scan {{ pro_feed_filter_name }}</button>
     </form>
+    {% if pro_sub.status == 'active' %}
     <form class="inline-form" method="post" action="{{ url_for('scan_now') }}">
       <button type="submit">Scan All</button>
     </form>
+    {% endif %}
     {% endif %}
   </div>
   {% for g in pro_feed_groups %}
@@ -232,7 +239,7 @@
     <label>Stories per page
       <select name="story_limit">
         {% for v, label in [(0, 'All'), (5, '5'), (10, '10'), (15, '15'), (25, '25'), (50, '50'), (100, '100'), (200, '200')] %}
-        <option value="{{ v }}"{% if (settings.get('story_limit') if settings.get('story_limit') is not none else 200) == v %} selected{% endif %}>{{ label }}</option>
+        <option value="{{ v }}"{% if (settings.get('story_limit') if settings.get('story_limit') is not none else 25) == v %} selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </label>

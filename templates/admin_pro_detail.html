@@ -7,7 +7,8 @@
 <div class="card pro-card">
   <h2>Subscription</h2>
   <p><span class="pill">{{ plan|capitalize }}</span>
-     {% if status == 'active' %}<span class="status-pill ok">Active</span>{% else %}<span class="status-pill bad">Lapsed</span>{% endif %}</p>
+     {% if status == 'active' %}<span class="status-pill ok">Active</span>
+     {% elif plan != 'free' %}<span class="status-pill bad">Lapsed</span>{% endif %}</p>
   <p>Expires: <strong>{{ expiry_str }}</strong></p>
   <p>Towns used: <strong>{{ extras + 1 if towns else extras }}/{{ max_towns }}</strong>
      <span class="muted small">(main + {{ extras }} extra)</span></p>

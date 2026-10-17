@@ -120,7 +120,11 @@ button:hover, .btn:hover { filter: brightness(0.93); }
 .story:last-child { border-bottom: none; }
 .story.read { opacity: 0.62; }
 .story.unread { background: var(--unread-bg); border-left: 3px solid var(--accent); padding-left: 13px; }
-.srow { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.srow { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.sright { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.sright .town-chip { margin-left: 0; }
+.iconbtn { text-decoration: none; font-size: 1.05rem; color: var(--accent); line-height: 1; }
+.iconbtn:hover { color: var(--ink); }
 .stitle { color: var(--ink); text-decoration: none; font-size: 1.02rem; }
 .story.unread .stitle { font-weight: 700; }
 .stitle:hover { color: var(--accent); }
@@ -130,10 +134,6 @@ button:hover, .btn:hover { filter: brightness(0.93); }
   border-radius: 10px; padding: 2px 9px;
 }
 .smeta { margin-top: 4px; font-size: 0.85rem; color: var(--muted); }
-.smeta .actions { float: right; }
-.smeta .actions a {
-  margin-left: 10px; text-decoration: none; font-size: 1.05rem; color: var(--accent);
-}
 .feedlist { list-style: none; padding: 0; }
 .feed {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;

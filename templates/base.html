@@ -30,7 +30,7 @@
     <a href="{{ url_for('places_page') }}"{% if request.endpoint == 'places_page' %} class="on"{% endif %}>Places</a>
     <a href="{{ url_for('settings_page') }}"{% if request.endpoint == 'settings_page' %} class="on"{% endif %}>Settings</a>
     {% if is_admin %}<a href="{{ url_for('admin_panel') }}"{% if request.endpoint and request.endpoint.startswith('admin') %} class="on"{% endif %}>Admin</a>{% endif %}
-    <a href="{{ url_for('logout') }}">Logout ({{ user['username'] }})</a>
+    <a href="{{ url_for('logout') }}">Logout ({{ user['username'] }})</a>{% if is_founder %} <span class="pill" title="TownsLine founder — backed the project from the start">Founder</span>{% endif %}
   </nav>
   {% endif %}
 </header>

@@ -56,7 +56,7 @@
     <tbody>
     {% for t in towns %}
       <tr{% if t['greyed'] %} class="town-greyed"{% endif %}>
-        <td><strong>{{ t['town_name'] }}</strong>{% if t['is_main'] %} <span class="pill">Main</span>{% endif %}{% if t['greyed'] %} <span class="muted small">(greyed — lapsed)</span>{% endif %}</td>
+        <td><strong>{{ t['town_name'] }}</strong>{% if t['is_main'] %} <span class="pill">Main</span>{% endif %}{% if t['greyed'] %} <span class="muted small">(lapsed — one town at a time)</span>{% endif %}</td>
         <td>{{ t['story_count'] }}</td>
         <td>
           {% if not t['is_main'] %}
@@ -84,7 +84,12 @@
 </div>
 <div class="card">
   <h2>Feed &amp; place attribution</h2>
-  <p class="muted small">Which town each feed and place belongs to. “Main (untagged)” follows the main town. Change any that landed under the wrong town, then save.</p>
+  <p class="muted small">Which town each feed and place belongs to — this decides whose news line and town tile it appears under. Three rules:</p>
+  <ul class="muted small">
+    <li><strong>Main town</strong> — counted with the main town. If the main town is changed later, these items stay with the <em>old</em> main town (pinned automatically, so nothing silently moves).</li>
+    <li><strong>An extra town</strong> — pinned to that town, always.</li>
+    <li>Removing a town deletes its feeds, their stories, and its places. The main town can't be removed.</li>
+  </ul>
   <form method="post" action="{{ url_for('admin_pro_reassign_items', uid=target['id']) }}">
     <h3>Feeds</h3>
     <table class="admintable">
@@ -94,10 +99,10 @@
         <tr>
           <td><strong>{{ f['name'] }}</strong><br><span class="muted small">{{ f['url'] }}</span></td>
           <td><select name="feed_{{ f['id'] }}">
-            <option value=""{% if not f['town_slug'] %} selected{% endif %}>Main (untagged)</option>
-            {% for t in towns %}
-            <option value="{{ t['town_slug'] }}"{% if f['town_slug'] == t['town_slug'] %} selected{% endif %}>{{ t['town_name'] }}{% if t['is_main'] %} (main){% endif %}</option>
-            {% endfor %}
+            <option value=""{% if not f['town_slug'] or f['town_slug'] == main_slug %} selected{% endif %}>Main town</option>
+            {% for t in towns %}{% if not t['is_main'] %}
+            <option value="{{ t['town_slug'] }}"{% if f['town_slug'] == t['town_slug'] %} selected{% endif %}>{{ t['town_name'] }}</option>
+            {% endif %}{% endfor %}
           </select></td>
         </tr>
         {% endfor %}
@@ -111,10 +116,10 @@
         <tr>
           <td><strong>{{ p['name'] }}</strong><br><span class="muted small">{{ p['url'] }}</span></td>
           <td><select name="place_{{ p['id'] }}">
-            <option value=""{% if not p['town_slug'] %} selected{% endif %}>Main (untagged)</option>
-            {% for t in towns %}
-            <option value="{{ t['town_slug'] }}"{% if p['town_slug'] == t['town_slug'] %} selected{% endif %}>{{ t['town_name'] }}{% if t['is_main'] %} (main){% endif %}</option>
-            {% endfor %}
+            <option value=""{% if not p['town_slug'] or p['town_slug'] == main_slug %} selected{% endif %}>Main town</option>
+            {% for t in towns %}{% if not t['is_main'] %}
+            <option value="{{ t['town_slug'] }}"{% if p['town_slug'] == t['town_slug'] %} selected{% endif %}>{{ t['town_name'] }}</option>
+            {% endif %}{% endfor %}
           </select></td>
         </tr>
         {% endfor %}

@@ -41,6 +41,10 @@
         onsubmit="return confirm('Revoke {{ target['username'] }} to Free? Towns stay saved, extra towns grey out.')">
     <button type="submit" class="linklike danger">Revoke to Free</button>
   </form>
+  <form method="post" action="{{ url_for('admin_pro_founder', uid=target['id']) }}" style="margin-top:8px">
+    <button type="submit" class="linklike">{% if target['is_founder'] %}Remove founder badge{% else %}Grant founder badge{% endif %}</button>
+    {% if target['is_founder'] %}<span class="pill">Founder</span>{% endif %}
+  </form>
 </div>
 
 <div class="card">

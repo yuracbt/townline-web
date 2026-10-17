@@ -218,7 +218,7 @@
   {% include "_suggestions.html" %}
 </div>
 
-<div class="card">
+<div class="card" id="scanning">
   <h2>Scanning</h2>
   <form method="post">
     <label>Scan interval
@@ -234,7 +234,8 @@
     </label>
     <label class="check">
       <input type="checkbox" name="digest_enabled" value="1"{% if settings.get('digest_enabled', 1) %} checked{% endif %}>
-      Email me a digest of unread stories (weekly for Pro, daily for Elite)
+      Email me a digest of unread stories (weekly for Pro, daily for Elite)<br>
+      <span class="muted small">Sent in the morning, only when you haven't checked in lately.</span>
     </label>
     <label>Stories per page
       <select name="story_limit">

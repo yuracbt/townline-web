@@ -86,15 +86,15 @@
   <li class="story{% if s['is_read'] %} read{% else %} unread{% endif %}" data-id="{{ s['id'] }}" data-url="{{ s['url'] }}" data-cat="{{ s['category'] }}">
     <div class="srow">
       <a class="stitle" href="{{ s['url'] }}" target="_blank" rel="noopener">{{ s['title'] }}</a>
-      <span class="cat">{{ s['category'] }}</span>{% if pro_show_chips and s['town_name'] %}<span class="town-chip">{{ s['town_name'] }}</span>{% endif %}
+      <span class="sright">
+        <span class="cat">{{ s['category'] }}</span>{% if pro_show_chips and s['town_name'] %}<span class="town-chip">{{ s['town_name'] }}</span>{% endif %}
+        <a class="iconbtn" data-act="save" href="{{ url_for('toggle_save', sid=s['id']) }}" title="Save / unsave">{{ '★' if s['is_saved'] else '☆' }}</a>
+        {% if not s['is_read'] %}<a class="iconbtn" data-act="read" href="{{ url_for('mark_read', sid=s['id']) }}" title="Mark read">✓</a>{% endif %}
+      </span>
     </div>
     <div class="smeta">
       <span>{{ s['feed_name'] or 'Feed' }}</span> ·
       <span>{{ rel_time(s['published']) }}</span>
-      <span class="actions">
-        <a class="iconbtn" data-act="save" href="{{ url_for('toggle_save', sid=s['id']) }}" title="Save / unsave">{{ '★' if s['is_saved'] else '☆' }}</a>
-        {% if not s['is_read'] %}<a class="iconbtn" data-act="read" href="{{ url_for('mark_read', sid=s['id']) }}" title="Mark read">✓</a>{% endif %}
-      </span>
     </div>
   </li>
   {% endif %}
